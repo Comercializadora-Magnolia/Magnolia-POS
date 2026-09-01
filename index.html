@@ -2174,8 +2174,13 @@ function refreshReportesIfVisible(){
 // =====================================================================
 // COMPARTIR (WhatsApp)
 // =====================================================================
-function compartirWhatsApp(){
+async function compartirWhatsApp(){
   if (selectedVentasDay !== todayKey() || ventasDiaActual.length === 0){ showToast('No hay ventas hoy para compartir'); return; }
+
+  // Abre la pestaña ANTES de esperar los datos de gastos/retiros: algunos
+  // navegadores solo dejan abrir una ventana nueva como reacción DIRECTA al
+  // clic, y la bloquean si pasa después de un "await" (como el que viene abajo).
+  const win = window.open('', '_blank');
 
   let total = 0, qtyTotal = 0, efectivo = 0, visa = 0, transf = 0;
   const byCode = {};
@@ -2189,19 +2194,36 @@ function compartirWhatsApp(){
   });
   const top = Object.values(byCode).sort((a,b) => b.qty - a.qty)[0];
 
+  // Gastos y retiros DEL DÍA (no del turno completo, que puede abarcar todo
+  // un fin de semana) — para que el resumen de WhatsApp hable solo de hoy.
+  let totalGastos = 0, totalRetiros = 0;
+  try{
+    const [gastosData, retirosData] = await Promise.all([
+      apiGet({ action: 'gastosrango', desde: todayKey(), hasta: todayKey() }),
+      apiGet({ action: 'retirosrango', desde: todayKey(), hasta: todayKey() })
+    ]);
+    gastosData.gastos.forEach(g => { totalGastos += g.monto; });
+    retirosData.retiros.forEach(r => { totalRetiros += r.monto; });
+  }catch(err){
+    // si falla, se comparte igual sin esos datos — mejor no bloquear el resumen por esto
+  }
+
   let texto = `*Resumen del día — Magnolia*\n${formatDateLong(new Date())}\n\n`;
   texto += `Total vendido: ${fmtCLP(total)}\n`;
   texto += `Unidades: ${qtyTotal}\n\n`;
   texto += `Efectivo: ${fmtCLP(efectivo)}\n`;
   texto += `Visa: ${fmtCLP(visa)}\n`;
   texto += `Transferencia: ${fmtCLP(transf)}\n`;
+  texto += `\nGastos: ${fmtCLP(totalGastos)}\n`;
+  texto += `Retiros para depósito: ${fmtCLP(totalRetiros)}\n`;
   if (top){
     texto += `\nMás vendido: ${top.artist}${top.title ? ' — ' + top.title : ''} (${top.qty})\n`;
   }
 
   const url = 'https://wa.me/?text=' + encodeURIComponent(texto);
-  const win = window.open(url, '_blank');
-  if (!win){
+  if (win){
+    win.location.href = url;
+  } else {
     showToast('El navegador bloqueó la ventana — habilita pop-ups para compartir por WhatsApp');
   }
 }
