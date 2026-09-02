@@ -976,9 +976,13 @@ button{font-family:inherit;}
 
 // ----- CONFIG -----
 const API_URL = 'https://script.google.com/macros/s/AKfycbwdhmdA-3LfDSrFPS-lpcyMVGlWeG-7UMrpEF4ZJSS5CH7S4pssAVN2Da6Dk4B7dWf-/exec';
+// Token compartido con el backend (Codigo.gs) — evita que alguien que encuentre
+// esta URL pueda leer/escribir sin pasar por la app. Debe coincidir exactamente
+// con el valor guardado en Apps Script (configurarTokenSeguridad_()).
+const APP_TOKEN = 'oUJoMULnmSIWwC3L3Z0c7OUWkEcIBXS3';
 
 async function apiGet(params){
-  const qs = new URLSearchParams(params || {}).toString();
+  const qs = new URLSearchParams(Object.assign({ token: APP_TOKEN }, params || {})).toString();
   let res;
   try{
     res = await fetch(API_URL + (qs ? '?' + qs : ''));
@@ -998,7 +1002,7 @@ async function apiPost(action, payload){
       // text/plain evita que el navegador mande una petición OPTIONS de más
       // (Apps Script no la responde bien) — el backend igual hace JSON.parse().
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(Object.assign({ action }, payload || {}))
+      body: JSON.stringify(Object.assign({ action, token: APP_TOKEN }, payload || {}))
     });
   }catch(err){
     throw new Error('No se pudo conectar — revisa tu conexión a internet.');
