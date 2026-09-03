@@ -71,7 +71,7 @@
 
 *{box-sizing:border-box;}
 html{
-  font-size:calc(16px * var(--fs));
+  font-size:calc(14.8px * var(--fs));
   -webkit-text-size-adjust:100%;
 }
 html,body{margin:0;padding:0;}
@@ -97,24 +97,26 @@ button{font-family:inherit; color:inherit;}
   max-width:660px;
   margin:0 auto;
   min-height:100vh;
+  min-height:100dvh;
   display:flex;
   flex-direction:column;
   background:var(--surface-base);
   position:relative;
 }
+/* Escritorio: la app llega hasta el borde superior e inferior de la
+   pantalla — sin margen ni esquinas redondeadas arriba/abajo. Un borde
+   lateral sutil es lo único que la distingue del fondo. */
 @media (min-width:680px){
   body{ background:var(--frame-bg); }
   .app{
-    margin:26px auto;
-    min-height:0;
-    height:calc(100vh - 52px);
-    border-radius:26px;
+    margin:0 auto;
+    min-height:100vh;
+    height:100vh;
     overflow:auto;
-    border:1px solid var(--frame-edge);
-    box-shadow:0 0 0 1px rgba(0,0,0,.30), 0 34px 80px rgba(0,0,0,.55);
+    border-left:1px solid var(--frame-edge);
+    border-right:1px solid var(--frame-edge);
+    box-shadow:0 0 60px rgba(0,0,0,.35);
   }
-  .header{ border-radius:26px 26px 0 0; top:-1px; }
-  .tabbar{ border-radius:0 0 26px 26px; }
 }
 
 /* ===== CABECERA ===== */
@@ -656,6 +658,19 @@ button{font-family:inherit; color:inherit;}
 .bar-row__track{ flex:1; height:18px; background:var(--accent-soft); border-radius:9px; overflow:hidden; }
 .bar-row__fill{ height:100%; background:var(--accent); border-radius:9px; min-width:3px; }
 .bar-row__value{ flex:0 0 auto; font-size:0.85rem; font-weight:800; color:var(--accent-strong); min-width:72px; text-align:right; font-variant-numeric:tabular-nums; }
+
+/* ===== CELULAR: CABECERA/BARRA FIJAS (no sticky) =====
+   position:sticky dentro de un documento que hace scroll en la ventana
+   puede "saltar" cuando el navegador esconde o muestra su propia barra de
+   direcciones (cambia la altura visible de la pantalla a media navegación).
+   position:fixed se ancla al viewport visual y no sufre ese salto. Solo se
+   aplica en celular: en escritorio .app tiene su propio scroll interno y
+   ahí sticky es lo correcto (ver bloque @media min-width:680px arriba). */
+@media (max-width:679.98px){
+  .header{ position:fixed; top:0; left:0; right:0; z-index:50; }
+  .tabbar{ position:fixed; bottom:0; left:0; right:0; z-index:50; }
+  .content{ padding-top:calc(var(--header-h, 96px) + 20px); }
+}
 </style>
 </head>
 <body>
