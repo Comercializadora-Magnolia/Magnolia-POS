@@ -104,8 +104,11 @@ button{font-family:inherit; color:inherit;}
   position:relative;
 }
 /* Escritorio: la app llega hasta el borde superior e inferior de la
-   pantalla — sin margen ni esquinas redondeadas arriba/abajo. Un borde
-   lateral sutil es lo único que la distingue del fondo. */
+   pantalla (sin espacio muerto arriba/abajo) pero conserva esquinas
+   redondeadas — el radio va en la cabecera y la barra inferior, no en
+   .app, así se ve curva aunque toque el límite real de la pantalla.
+   top:-1px en la cabecera tapa una costura de 1px que deja el scroll
+   interno de .app junto al borde redondeado. */
 @media (min-width:680px){
   body{ background:var(--frame-bg); }
   .app{
@@ -117,6 +120,8 @@ button{font-family:inherit; color:inherit;}
     border-right:1px solid var(--frame-edge);
     box-shadow:0 0 60px rgba(0,0,0,.35);
   }
+  .header{ border-radius:20px 20px 0 0; top:-1px; }
+  .tabbar{ border-radius:0 0 20px 20px; }
 }
 
 /* ===== CABECERA ===== */
