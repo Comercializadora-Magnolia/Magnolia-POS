@@ -1238,11 +1238,12 @@ async function initApp(){
 // =====================================================================
 // SEARCH (compartido entre Vender / Inventario)
 // =====================================================================
-function searchInv(q, limit){
+function searchInv(q, limit, soloConStock){
   q = (q||'').trim().toLowerCase();
   if (q.length < 2) return [];
   const terms = q.split(/\s+/);
   return INV.filter(item => {
+    if (soloConStock && getStock(item) <= 0) return false;
     const hay = (item.c + ' ' + item.i + ' ' + item.t + ' ' + item.f).toLowerCase();
     return terms.every(t => hay.includes(t));
   }).slice(0, limit || 20);
@@ -1310,7 +1311,9 @@ function doSearchVender(){
   const q = searchInputVender.value;
   resultsListVender.innerHTML = '';
   if (!inventarioListo){ resultsListVender.innerHTML = '<li class="no-results">Cargando inventario…</li>'; return; }
-  const matches = searchInv(q, 20);
+  // Vender: solo discos con stock disponible -- no tiene sentido mostrar
+  // titulos agotados en el flujo de venta (eso es trabajo de Inventario).
+  const matches = searchInv(q, 20, true);
   if (q.trim().length >= 2 && matches.length === 0){
     resultsListVender.innerHTML = '<li class="no-results">No se encontraron discos con esa búsqueda.</li>';
     return;
@@ -1417,7 +1420,8 @@ searchInputCart.addEventListener('input', () => {
 function doSearchCart(){
   const q = searchInputCart.value;
   resultsListCart.innerHTML = '';
-  const matches = searchInv(q, 20);
+  // mismo criterio que la busqueda principal de Vender: solo stock disponible
+  const matches = searchInv(q, 20, true);
   if (q.trim().length >= 2 && matches.length === 0){
     resultsListCart.innerHTML = '<li class="no-results">No se encontraron discos con esa búsqueda.</li>';
     return;
