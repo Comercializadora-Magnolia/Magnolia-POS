@@ -682,6 +682,20 @@ button{font-family:inherit;}
               <button class="option-opt" data-pay="Transferencia" onclick="selectPay(this)">Transf.</button>
             </div>
           </div>
+          <div class="form-row">
+            <label>Descuento (opcional)</label>
+            <input id="sfDescuentoMonto" type="number" inputmode="numeric" min="0" placeholder="Ej: 3990" oninput="onDescuentoInput()">
+            <input id="sfDescuentoMotivo" type="text" placeholder="Motivo (opcional, ej: redondeo)" maxlength="60" style="margin-top:8px;">
+            <p class="field-note" id="sfDescuentoNote" style="display:none;"></p>
+          </div>
+          <div class="total-line" id="sfSubtotalLine" style="display:none; background:transparent; padding:0 4px; margin:0 0 2px;">
+            <span class="total-line__label" style="color:var(--ink-text-soft); font-size:calc(13px * var(--fs));">Subtotal</span>
+            <span class="total-line__value" id="sfSubtotal" style="color:var(--ink-text-soft); font-size:calc(16px * var(--fs));">$0</span>
+          </div>
+          <div class="total-line" id="sfDescuentoLine" style="display:none; background:transparent; padding:0 4px; margin:0 0 4px;">
+            <span class="total-line__label" style="color:var(--ink-text-soft); font-size:calc(13px * var(--fs));">Descuento</span>
+            <span class="total-line__value" id="sfDescuentoValue" style="color:var(--ink-text-soft); font-size:calc(16px * var(--fs));">-$0</span>
+          </div>
           <div class="total-line">
             <span class="total-line__label">Total</span>
             <span class="total-line__value" id="sfTotal">$0</span>
@@ -1352,6 +1366,25 @@ function closeSaleForm(){
   document.getElementById('btnAddMore').textContent = '+ Agregar otro producto';
   document.getElementById('searchInputCart').value = '';
   document.getElementById('resultsListCart').innerHTML = '';
+  document.getElementById('sfDescuentoMonto').value = '';
+  document.getElementById('sfDescuentoMotivo').value = '';
+  document.getElementById('sfDescuentoNote').style.display = 'none';
+  document.getElementById('sfSubtotalLine').style.display = 'none';
+  document.getElementById('sfDescuentoLine').style.display = 'none';
+}
+// El descuento se aplica a la venta completa (ej: redondear 103.990 a 100.000), no
+// producto por producto. Para no tener que repartirlo entre varias líneas de Ventas,
+// se le carga entero a UNA sola línea del carrito (la de mayor subtotal, para tener
+// margen de sobra) — la columna H de Ventas ya resta ese monto con su propia fórmula
+// (=IF(...;MAX(0;F*G-P);...)), así que el Total de la venta queda igual de correcto.
+// Por eso el descuento nunca puede superar el subtotal de esa línea más grande: si el
+// vendedor escribe más, se avisa y se aplica el máximo posible con ese carrito.
+function maxDescuentoPermitido(){
+  if (!cart.length) return 0;
+  return Math.max(...cart.map(l => l.priceUnit * l.qty));
+}
+function onDescuentoInput(){
+  renderCartPanel();
 }
 function cartChangeQty(code, delta){
   const line = cart.find(l => l.code === code);
@@ -1402,7 +1435,35 @@ function renderCartPanel(){
       </div>`;
     list.appendChild(li);
   });
-  document.getElementById('sfTotal').textContent = fmtCLP(total);
+
+  const subtotal = total;
+  const maxDesc = maxDescuentoPermitido();
+  const descInputEl = document.getElementById('sfDescuentoMonto');
+  let descInput = descInputEl ? (parseInt(descInputEl.value, 10) || 0) : 0;
+  if (descInput < 0) descInput = 0;
+  const descAplicado = Math.min(descInput, maxDesc);
+  const totalConDescuento = Math.max(0, subtotal - descAplicado);
+
+  const subtotalLine = document.getElementById('sfSubtotalLine');
+  const descLine = document.getElementById('sfDescuentoLine');
+  const descNote = document.getElementById('sfDescuentoNote');
+  if (descAplicado > 0){
+    subtotalLine.style.display = 'flex';
+    descLine.style.display = 'flex';
+    document.getElementById('sfSubtotal').textContent = fmtCLP(subtotal);
+    document.getElementById('sfDescuentoValue').textContent = '-' + fmtCLP(descAplicado);
+  } else {
+    subtotalLine.style.display = 'none';
+    descLine.style.display = 'none';
+  }
+  if (descInput > maxDesc && maxDesc > 0){
+    descNote.style.display = 'block';
+    descNote.textContent = 'El descuento máximo posible con este carrito es ' + fmtCLP(maxDesc) + ' — se aplicará ese monto.';
+  } else {
+    descNote.style.display = 'none';
+  }
+
+  document.getElementById('sfTotal').textContent = fmtCLP(totalConDescuento);
 }
 function selectPay(btn){
   selectedPayment = btn.dataset.pay;
@@ -1450,12 +1511,38 @@ async function confirmarVenta(){
   const day = todayKey();
   const payment = selectedPayment;
   const cartSnapshot = cart.map(l => ({...l}));
-  const totalVenta = cartSnapshot.reduce((a,l) => a + l.priceUnit*l.qty, 0);
+  const subtotalVenta = cartSnapshot.reduce((a,l) => a + l.priceUnit*l.qty, 0);
+
+  // Descuento a la venta completa (ej: redondear el total) — se carga entero a la
+  // línea de mayor subtotal del carrito, tal como se muestra en el resumen.
+  const descInputEl = document.getElementById('sfDescuentoMonto');
+  let descInput = descInputEl ? (parseInt(descInputEl.value, 10) || 0) : 0;
+  if (descInput < 0) descInput = 0;
+  const maxDesc = maxDescuentoPermitido();
+  const descAplicado = Math.min(descInput, maxDesc);
+  const motivoDescuento = (document.getElementById('sfDescuentoMotivo').value || '').trim();
+  const totalVenta = Math.max(0, subtotalVenta - descAplicado);
+
+  let idxLineaDescuento = -1;
+  if (descAplicado > 0){
+    let mejorSubtotal = -1;
+    cartSnapshot.forEach((l, i) => {
+      const sub = l.priceUnit * l.qty;
+      if (sub > mejorSubtotal){ mejorSubtotal = sub; idxLineaDescuento = i; }
+    });
+  }
 
   try{
     await apiPost('venta', {
       fecha: day, hora: time, ventaId, formaPago: payment,
-      lineas: cartSnapshot.map(l => ({ codigo: l.code, cantidad: l.qty }))
+      lineas: cartSnapshot.map((l, i) => {
+        const linea = { codigo: l.code, cantidad: l.qty };
+        if (i === idxLineaDescuento){
+          linea.descuentoMonto = descAplicado;
+          if (motivoDescuento) linea.motivoDescuento = motivoDescuento;
+        }
+        return linea;
+      })
     });
   }catch(err){
     if (btnConfirmar) btnConfirmar.disabled = false;
@@ -2143,8 +2230,9 @@ function renderReportesConDatos(ventasAnioConFecha, gastosMes, monthDays, yearDa
   document.getElementById('repUnidadesTurno').textContent = unidadesTurno;
   document.getElementById('repUnidadesTurnoSub').textContent = turnoSub;
 
-  // vendido vs neto: neto = vendido / 1.19 (el precio final ya incluye el 19% de IVA;
-  // la app hoy no captura descuentos, así que el bruto y el "vendido" son el mismo total).
+  // vendido vs neto: neto = vendido / 1.19 (el precio final ya incluye el 19% de IVA).
+  // "vendido" (bruto) ya viene con los descuentos aplicados, porque v.total se lee de
+  // Ventas!H, que los resta directo en la fórmula de la propia hoja.
   const netoMes = Math.max(0, ventasTotalMes / 1.19);
   document.getElementById('repVendidoNetoBruto').textContent = fmtCLP(ventasTotalMes);
   document.getElementById('repVendidoNetoNeto').textContent = fmtCLP(netoMes);
