@@ -184,7 +184,12 @@ button{font-family:inherit;}
 .result-item__title{ font-size:calc(15px * var(--fs)); color:var(--ink-text-soft); margin-top:2px; }
 .result-item__meta{ display:flex; justify-content:space-between; align-items:center; margin-top:7px; }
 .result-item__price{ font-weight:700; font-size:calc(18px * var(--fs)); color:var(--gold-700); font-variant-numeric:tabular-nums; }
+.result-item__price-wrap{ display:flex; align-items:center; gap:6px; }
 .result-item__code{ font-size:calc(12px * var(--fs)); color:#a89a80; font-family:ui-monospace, 'SF Mono', Consolas, monospace; margin-top:4px; }
+.inv-row__manual-tag{
+  font-size:calc(10px * var(--fs)); font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+  color:var(--gold-700); background:var(--paper-sunken); border-radius:5px; padding:1px 5px; margin-left:4px;
+}
 
 /* ===== INVENTARIO — fila compacta ===== */
 .inv-row{
@@ -1034,6 +1039,29 @@ button{font-family:inherit;}
     </div>
   </div>
 
+  <!-- Editar precio final overlay -->
+  <div class="overlay" id="editPrecioOverlay">
+    <div class="overlay__panel">
+      <div class="sale-form__header">
+        <div>
+          <div class="sale-form__artist" id="epArtist"></div>
+          <div class="sale-form__title-line" id="epTitle"></div>
+        </div>
+        <button class="close-x" onclick="closeEditarPrecio()" aria-label="Cerrar">&times;</button>
+      </div>
+      <p class="field-note" id="epCalculado" style="margin-bottom:10px;"></p>
+      <div class="form-row">
+        <label>Precio Final (opcional)</label>
+        <input id="epPrecioFinal" type="number" inputmode="numeric" min="0" placeholder="Ej: 12000">
+        <p class="field-note">Déjalo vacío y guarda para volver a usar el precio automático.</p>
+      </div>
+      <div class="overlay__actions">
+        <button class="btn btn-outline" onclick="closeEditarPrecio()">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarPrecioFinal()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -1161,7 +1189,13 @@ function dateRange(startStr, endStr){
 // ----- MAPEO API -> objetos internos (mismos nombres cortos de siempre) -----
 // Inventario: {c:codigo, i:interprete, t:titulo, f:presentacion, p:precioVenta, s:stock, rb:rubro}
 function mapProductoApi_(d){
-  return { c: d.codigo, i: d.interprete, t: d.titulo, f: d.presentacion, p: d.precioVenta || 0, s: d.stock || 0, rb: d.rubro };
+  return {
+    c: d.codigo, i: d.interprete, t: d.titulo, f: d.presentacion,
+    p: d.precioVenta || 0, // precio EFECTIVO -- el que se cobra (manual si existe, si no el calculado)
+    pc: typeof d.precioCalculado === 'number' ? d.precioCalculado : null, // el "de libro", solo referencia
+    pf: typeof d.precioFinalManual === 'number' ? d.precioFinalManual : null, // null = sin precio manual
+    s: d.stock || 0, rb: d.rubro
+  };
 }
 // Venta: {row, ventaId, time, code, artist, title, format, priceUnit, qty, total, payment}
 function mapVentaApi_(v){
@@ -1291,14 +1325,20 @@ function renderResultItem(item, onClick){
     : `<span class="badge badge-danger">Sin stock</span>`;
   const titleText = item.t || '';
   const formatText = item.f ? ' · ' + esc(item.f) : '';
+  const manualTag = item.pf != null ? `<span class="inv-row__manual-tag" title="Precio fijado a mano">manual</span>` : '';
   li.innerHTML =
     `<div class="result-item__artist">${esc(item.i)}</div>` +
     (titleText ? `<div class="result-item__title">${esc(titleText)}${formatText}</div>` : '') +
     `<div class="result-item__meta">
-       <span class="result-item__price">${fmtCLP(item.p)}</span>
+       <span class="result-item__price-wrap">
+         <span class="result-item__price">${fmtCLP(item.p)}</span>
+         ${manualTag}
+         <button class="entry__edit result-item__edit-price" aria-label="Editar precio">&#9998;</button>
+       </span>
        ${stockBadge}
      </div>
      <div class="result-item__code">${esc(item.c)}</div>`;
+  li.querySelector('.result-item__edit-price').onclick = (ev) => { ev.stopPropagation(); abrirEditarPrecio(item); };
   return li;
 }
 
@@ -1314,16 +1354,19 @@ function renderInvRow(item){
     : (stock <= 2 ? `<span class="badge badge-warn">Stock: ${stock}</span>` : `<span class="badge badge-ok">Stock: ${stock}</span>`);
   const titleText = item.t || '';
   const formatText = item.f ? ' · ' + esc(item.f) : '';
+  const manualTag = item.pf != null ? `<span class="inv-row__manual-tag" title="Precio fijado a mano">manual</span>` : '';
   li.innerHTML = `
     <div class="inv-row__main">
       <div class="inv-row__artist">${esc(item.i)}</div>
       ${titleText ? `<div class="inv-row__title">${esc(titleText)}${formatText}</div>` : ''}
     </div>
     <div class="inv-row__price-col">
-      <div class="inv-row__price">${fmtCLP(item.p)}</div>
+      <div class="inv-row__price">${fmtCLP(item.p)}${manualTag}</div>
       <div class="inv-row__code">${esc(item.c)}</div>
     </div>
+    <button class="entry__edit" aria-label="Editar precio">&#9998;</button>
     <div class="inv-row__stock">${stockBadge}</div>`;
+  li.querySelector('.entry__edit').onclick = () => abrirEditarPrecio(item);
   return li;
 }
 
@@ -1816,6 +1859,54 @@ async function guardarEdicionVenta(){
   await renderVentasDia();
   cargarInventario().then(() => { refreshInventarioIfVisible(); refreshReportesIfVisible(); }).catch(err => {});
   showToast('Venta actualizada');
+}
+
+// =====================================================================
+// EDITAR PRECIO FINAL (precio de lista manual, distinto del descuento
+// puntual de una venta) -- se usa desde Inventario y desde la búsqueda
+// de Vender, ambos llaman a la misma función/acción del backend.
+// =====================================================================
+let editingPrecioItem = null; // item de INV actualmente en edición de precio
+function abrirEditarPrecio(item){
+  editingPrecioItem = item;
+  document.getElementById('epArtist').textContent = item.i;
+  document.getElementById('epTitle').textContent = [item.t, item.f].filter(Boolean).join(' · ');
+  const calculado = item.pc != null ? item.pc : item.p;
+  document.getElementById('epCalculado').textContent = 'Precio calculado (automático): ' + fmtCLP(calculado);
+  document.getElementById('epPrecioFinal').value = item.pf != null ? item.pf : '';
+  document.getElementById('editPrecioOverlay').classList.add('show');
+}
+function closeEditarPrecio(){
+  editingPrecioItem = null;
+  document.getElementById('editPrecioOverlay').classList.remove('show');
+}
+async function guardarPrecioFinal(){
+  if (!editingPrecioItem) return;
+  const raw = document.getElementById('epPrecioFinal').value.trim();
+  let precioFinal = null;
+  if (raw !== ''){
+    const n = Number(raw);
+    if (!isFinite(n) || n < 0){ showToast('Precio inválido'); return; }
+    precioFinal = n;
+  }
+  const codigo = editingPrecioItem.c;
+  try{
+    await apiPost('preciofinal', { codigo, precioFinal });
+  }catch(err){
+    showToast('No se pudo guardar el precio: ' + err.message, { duration: 4500 });
+    return;
+  }
+  // se refleja al toque en memoria, sin esperar a que vuelva a cargar todo el catálogo
+  const it = INV.find(x => x.c === codigo);
+  if (it){
+    it.pf = precioFinal;
+    it.p = precioFinal != null ? precioFinal : (it.pc != null ? it.pc : it.p);
+  }
+  closeEditarPrecio();
+  refreshInventarioIfVisible();
+  if (document.getElementById('view-vender').classList.contains('active')) doSearchVender();
+  showToast(precioFinal != null ? 'Precio actualizado' : 'Precio restablecido al automático');
+  cargarInventario().then(() => { refreshInventarioIfVisible(); }).catch(err => {});
 }
 
 // =====================================================================
