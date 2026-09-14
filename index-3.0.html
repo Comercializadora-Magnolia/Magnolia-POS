@@ -1190,9 +1190,14 @@ function mapCierreApi_(h){
 }
 
 // ----- CARGA DE INVENTARIO (una vez al abrir, se refresca tras cada venta) -----
-async function cargarInventario(){
-  const data = await apiGet({ action: 'inventario' });
-  INV = data.productos.map(mapProductoApi_);
+// productosPrefetched: opcional -- si initApp() ya trajo el catálogo como parte
+// de la carga combinada (accion=estadoInicial), lo usa directo y se ahorra un
+// viaje de red aparte. El resto de los llamados (refresco en segundo plano tras
+// una venta, etc.) siguen llamando cargarInventario() sin argumentos, igual que
+// siempre.
+async function cargarInventario(productosPrefetched){
+  const productos = productosPrefetched || (await apiGet({ action: 'inventario' })).productos;
+  INV = productos.map(mapProductoApi_);
   inventarioListo = true;
 }
 function getStock(item){ return item.s || 0; }
@@ -1232,9 +1237,18 @@ document.getElementById('headerDate').textContent = formatDateLong(new Date());
 selectedVentasDay = todayKey();
 
 async function initApp(){
+  // Antes: cargarInventario() + renderVentasDia() + renderCaja() (que a su vez
+  // podía llamar renderGastos/renderRetiros/renderHistorialCierres) pedían cada
+  // uno por su cuenta, hasta 4-6 viajes de red separados apenas se abría la app.
+  // Cada viaje a esta Web App paga un costo fijo aparte de lo que tarda en
+  // calcularse la respuesta (Apps Script entrega el resultado de un doGet a
+  // través de una redirección a un dominio de contenido de Google, nunca directo)
+  // — con estadoInicial se paga ese costo una sola vez, con todo junto.
+  let estado;
   try{
     showToast('Cargando inventario…', { duration: 60000 });
-    await cargarInventario();
+    estado = await apiGet({ action: 'estadoinicial' });
+    await cargarInventario(estado.productos);
     hideToast();
     showConnError(null);
   }catch(err){
@@ -1243,8 +1257,8 @@ async function initApp(){
     return;
   }
   await Promise.all([
-    renderVentasDia(),
-    renderCaja()
+    renderVentasDia(estado.ventasHoy),
+    renderCaja({ caja: estado.cajaAbierta, historial: estado.historial, gastos: estado.gastosTurno, retiros: estado.retirosTurno })
   ]);
   actualizarIndicadorCaja();
 }
@@ -1599,7 +1613,10 @@ function agruparVentas(ventas){
   });
   return order.map(k => map.get(k));
 }
-async function renderVentasDia(){
+// ventasHoyPrefetched: opcional -- solo se usa si el día pedido es hoy (initApp()
+// la pasa con lo que ya trajo accion=estadoInicial, para no volver a pedirlo).
+// Cambiar de día con las flechas sigue pidiendo ese día aparte, como siempre.
+async function renderVentasDia(ventasHoyPrefetched){
   const dayKey = selectedVentasDay || todayKey();
   const isHoy = dayKey === todayKey();
   document.getElementById('ventasFechaInput').value = dayKey;
@@ -1618,8 +1635,8 @@ async function renderVentasDia(){
 
   let ventas;
   try{
-    const data = await apiGet({ action: 'ventasrango', desde: dayKey, hasta: dayKey });
-    ventas = data.ventas.map(mapVentaApi_);
+    const crudo = (isHoy && ventasHoyPrefetched) ? ventasHoyPrefetched : (await apiGet({ action: 'ventasrango', desde: dayKey, hasta: dayKey })).ventas;
+    ventas = crudo.map(mapVentaApi_);
   }catch(err){
     emptyText.textContent = 'No se pudieron cargar las ventas: ' + err.message;
     return;
@@ -1852,12 +1869,15 @@ function closeConfirm(){
 // =====================================================================
 // CAJA DE FIN DE SEMANA
 // =====================================================================
-async function renderCaja(){
+// prefetched: opcional -- {caja, historial, gastos, retiros} ya traídos por
+// initApp() vía accion=estadoInicial, para no volver a pedirlos por separado.
+// Abrir/cerrar caja, agregar gastos/retiros, etc. siguen llamando renderCaja()
+// sin argumentos y piden todo fresco, como siempre.
+async function renderCaja(prefetched){
   const cerradaDiv = document.getElementById('cajaCerrada');
   const abiertaDiv = document.getElementById('cajaAbierta');
   try{
-    const data = await apiGet({ action: 'cajaabierta' });
-    cajaAbiertaActual = data.caja;
+    cajaAbiertaActual = prefetched ? prefetched.caja : (await apiGet({ action: 'cajaabierta' })).caja;
   }catch(err){
     showToast('No se pudo consultar el estado de la caja: ' + err.message, { duration: 4500 });
     return;
@@ -1865,7 +1885,7 @@ async function renderCaja(){
   if (!cajaAbiertaActual){
     cerradaDiv.style.display = 'block';
     abiertaDiv.style.display = 'none';
-    await renderHistorialCierres();
+    await renderHistorialCierres(prefetched && prefetched.historial);
     actualizarIndicadorCaja();
     return;
   }
@@ -1875,14 +1895,14 @@ async function renderCaja(){
     `Caja abierta desde el ${cajaAbiertaActual.fechaApertura} con ${fmtCLP(cajaAbiertaActual.efectivoInicial)} de efectivo inicial.`;
   document.getElementById('cajaEfectivoFinal').value = '';
   document.getElementById('cierreResultado').innerHTML = '';
-  await renderGastos();
-  await renderRetiros();
-  await renderHistorialCierres();
+  await renderGastos(prefetched && prefetched.gastos);
+  await renderRetiros(prefetched && prefetched.retiros);
+  await renderHistorialCierres(prefetched && prefetched.historial);
   actualizarIndicadorCaja();
 }
 // lista acumulada de los cierres RECIENTES (ultimos 6 meses), con opcion de editar cada uno —
 // el historial completo sigue en la Hoja (ver exportCierresXLSX, que pide el historial completo aparte).
-async function renderHistorialCierres(){
+async function renderHistorialCierres(historialPrefetched){
   const list = document.getElementById('cierresHistList');
   const empty = document.getElementById('cierresHistEmpty');
   const note = document.getElementById('cierresHistNote');
@@ -1890,8 +1910,8 @@ async function renderHistorialCierres(){
   list.innerHTML = '';
   let historial;
   try{
-    const data = await apiGet({ action: 'historial' });
-    historial = data.cierres.map(mapCierreApi_);
+    const crudo = historialPrefetched || (await apiGet({ action: 'historial' })).cierres;
+    historial = crudo.map(mapCierreApi_);
   }catch(err){
     empty.style.display = 'block';
     empty.textContent = 'No se pudo cargar el historial: ' + err.message;
@@ -1975,15 +1995,15 @@ async function registrarGasto(){
   await renderGastos();
   showToast('Gasto agregado');
 }
-async function renderGastos(){
+async function renderGastos(gastosPrefetched){
   const list = document.getElementById('gastosList');
   if (!list) return;
   list.innerHTML = '';
   if (!cajaAbiertaActual){ gastosTurnoActual = []; return; }
   let gastos;
   try{
-    const data = await apiGet({ action: 'gastosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() });
-    gastos = data.gastos.map(mapGastoApi_);
+    const crudo = gastosPrefetched || (await apiGet({ action: 'gastosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() })).gastos;
+    gastos = crudo.map(mapGastoApi_);
   }catch(err){
     list.innerHTML = `<li class="no-results">No se pudieron cargar los gastos: ${esc(err.message)}</li>`;
     return;
@@ -2032,15 +2052,15 @@ async function registrarRetiro(){
   await renderRetiros();
   showToast('Retiro agregado');
 }
-async function renderRetiros(){
+async function renderRetiros(retirosPrefetched){
   const list = document.getElementById('retirosList');
   if (!list) return;
   list.innerHTML = '';
   if (!cajaAbiertaActual){ retirosTurnoActual = []; return; }
   let retiros;
   try{
-    const data = await apiGet({ action: 'retirosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() });
-    retiros = data.retiros.map(mapRetiroApi_);
+    const crudo = retirosPrefetched || (await apiGet({ action: 'retirosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() })).retiros;
+    retiros = crudo.map(mapRetiroApi_);
   }catch(err){
     list.innerHTML = `<li class="no-results">No se pudieron cargar los retiros: ${esc(err.message)}</li>`;
     return;
