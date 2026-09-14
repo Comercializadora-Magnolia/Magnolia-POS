@@ -1395,7 +1395,10 @@ function doSearchVender(){
 // =====================================================================
 // VENDER — carrito (venta con uno o varios productos distintos)
 // =====================================================================
-// cart: [{code, artist, title, format, priceUnit, qty}]
+// cart: [{code, artist, title, format, priceUnit, manual, qty}]
+// "manual" marca si priceUnit viene de un Precio Final fijado a mano (item.pf)
+// en vez del precio calculado — viaja hasta el backend para que Ventas quede
+// con un registro fiel de qué precio se cobró realmente en cada venta.
 function addToCart(item){
   const stock = getStock(item);
   if (stock <= 0){
@@ -1410,7 +1413,7 @@ function addToCart(item){
       existing.qty += 1;
     }
   } else {
-    cart.push({ code: item.c, artist: item.i, title: item.t, format: item.f, priceUnit: item.p, qty: 1 });
+    cart.push({ code: item.c, artist: item.i, title: item.t, format: item.f, priceUnit: item.p, manual: item.pf != null, qty: 1 });
   }
   document.getElementById('saleFormOverlay').classList.add('show');
   renderCartPanel();
@@ -1593,7 +1596,11 @@ async function confirmarVenta(){
     await apiPost('venta', {
       fecha: day, hora: time, ventaId, formaPago: payment,
       lineas: cartSnapshot.map((l, i) => {
-        const linea = { codigo: l.code, cantidad: l.qty };
+        // precioUnit y manual viajan siempre: sin esto, Ventas recalculaba el
+        // precio solo con una fórmula que mira Inventario en vivo (y encima
+        // apuntaba solo al precio calculado, nunca al Precio Final manual) —
+        // el Total registrado podía no coincidir con lo que de verdad se cobró.
+        const linea = { codigo: l.code, cantidad: l.qty, precioUnit: l.priceUnit, manual: !!l.manual };
         if (i === idxLineaDescuento){
           linea.descuentoMonto = descAplicado;
           if (motivoDescuento) linea.motivoDescuento = motivoDescuento;
@@ -1902,9 +1909,20 @@ async function guardarPrecioFinal(){
     it.pf = precioFinal;
     it.p = precioFinal != null ? precioFinal : (it.pc != null ? it.pc : it.p);
   }
+  // si el producto ya está en el carrito de una venta en curso, esa línea se
+  // agregó con el precio de ese momento (es una "foto" congelada, a propósito,
+  // para que el precio de una venta no cambie solo mientras se está cobrando)
+  // -- pero si el vendedor mismo acaba de editar el precio con la intención de
+  // que se use en ESTA venta, hay que actualizar también la línea ya puesta.
+  const lineaCarrito = cart.find(l => l.code === codigo);
+  if (lineaCarrito && it){
+    lineaCarrito.priceUnit = it.p;
+    lineaCarrito.manual = it.pf != null;
+  }
   closeEditarPrecio();
   refreshInventarioIfVisible();
   if (document.getElementById('view-vender').classList.contains('active')) doSearchVender();
+  if (lineaCarrito) renderCartPanel();
   showToast(precioFinal != null ? 'Precio actualizado' : 'Precio restablecido al automático');
   cargarInventario().then(() => { refreshInventarioIfVisible(); }).catch(err => {});
 }
