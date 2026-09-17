@@ -184,12 +184,7 @@ button{font-family:inherit;}
 .result-item__title{ font-size:calc(15px * var(--fs)); color:var(--ink-text-soft); margin-top:2px; }
 .result-item__meta{ display:flex; justify-content:space-between; align-items:center; margin-top:7px; }
 .result-item__price{ font-weight:700; font-size:calc(18px * var(--fs)); color:var(--gold-700); font-variant-numeric:tabular-nums; }
-.result-item__price-wrap{ display:flex; align-items:center; gap:6px; }
 .result-item__code{ font-size:calc(12px * var(--fs)); color:#a89a80; font-family:ui-monospace, 'SF Mono', Consolas, monospace; margin-top:4px; }
-.inv-row__manual-tag{
-  font-size:calc(10px * var(--fs)); font-weight:700; text-transform:uppercase; letter-spacing:.03em;
-  color:var(--gold-700); background:var(--paper-sunken); border-radius:5px; padding:1px 5px; margin-left:4px;
-}
 
 /* ===== INVENTARIO — fila compacta ===== */
 .inv-row{
@@ -687,20 +682,6 @@ button{font-family:inherit;}
               <button class="option-opt" data-pay="Transferencia" onclick="selectPay(this)">Transf.</button>
             </div>
           </div>
-          <div class="form-row">
-            <label>Descuento (opcional)</label>
-            <input id="sfDescuentoMonto" type="number" inputmode="numeric" min="0" placeholder="Ej: 3990" oninput="onDescuentoInput()">
-            <input id="sfDescuentoMotivo" type="text" placeholder="Motivo (opcional, ej: redondeo)" maxlength="60" style="margin-top:8px;">
-            <p class="field-note" id="sfDescuentoNote" style="display:none;"></p>
-          </div>
-          <div class="total-line" id="sfSubtotalLine" style="display:none; background:transparent; padding:0 4px; margin:0 0 2px;">
-            <span class="total-line__label" style="color:var(--ink-text-soft); font-size:calc(13px * var(--fs));">Subtotal</span>
-            <span class="total-line__value" id="sfSubtotal" style="color:var(--ink-text-soft); font-size:calc(16px * var(--fs));">$0</span>
-          </div>
-          <div class="total-line" id="sfDescuentoLine" style="display:none; background:transparent; padding:0 4px; margin:0 0 4px;">
-            <span class="total-line__label" style="color:var(--ink-text-soft); font-size:calc(13px * var(--fs));">Descuento</span>
-            <span class="total-line__value" id="sfDescuentoValue" style="color:var(--ink-text-soft); font-size:calc(16px * var(--fs));">-$0</span>
-          </div>
           <div class="total-line">
             <span class="total-line__label">Total</span>
             <span class="total-line__value" id="sfTotal">$0</span>
@@ -830,9 +811,10 @@ button{font-family:inherit;}
           <input type="text" id="searchInputInventario" placeholder="Buscar en todo el catálogo..." autocomplete="off">
         </div>
         <div class="chip-row">
-          <button class="chip active" data-filter="todos" onclick="setInvFilter('todos', this)">Todos</button>
-          <button class="chip" data-filter="bajo" onclick="setInvFilter('bajo', this)">Stock bajo</button>
+          <button class="chip" data-filter="vinilo" onclick="setInvFilter('vinilo', this)">Vinilo</button>
+          <button class="chip" data-filter="cd" onclick="setInvFilter('cd', this)">CD</button>
           <button class="chip" data-filter="sinstock" onclick="setInvFilter('sinstock', this)">Sin stock</button>
+          <button class="chip active" data-filter="todos" onclick="setInvFilter('todos', this)">Todos</button>
         </div>
         <div class="field-note" id="invCount" style="margin-bottom:10px;"></div>
       </div>
@@ -1039,29 +1021,6 @@ button{font-family:inherit;}
     </div>
   </div>
 
-  <!-- Editar precio final overlay -->
-  <div class="overlay" id="editPrecioOverlay">
-    <div class="overlay__panel">
-      <div class="sale-form__header">
-        <div>
-          <div class="sale-form__artist" id="epArtist"></div>
-          <div class="sale-form__title-line" id="epTitle"></div>
-        </div>
-        <button class="close-x" onclick="closeEditarPrecio()" aria-label="Cerrar">&times;</button>
-      </div>
-      <p class="field-note" id="epCalculado" style="margin-bottom:10px;"></p>
-      <div class="form-row">
-        <label>Precio Final (opcional)</label>
-        <input id="epPrecioFinal" type="number" inputmode="numeric" min="0" placeholder="Ej: 12000">
-        <p class="field-note">Déjalo vacío y guarda para volver a usar el precio automático.</p>
-      </div>
-      <div class="overlay__actions">
-        <button class="btn btn-outline" onclick="closeEditarPrecio()">Cancelar</button>
-        <button class="btn btn-primary" onclick="guardarPrecioFinal()">Guardar</button>
-      </div>
-    </div>
-  </div>
-
 </div>
 
 <script>
@@ -1189,13 +1148,7 @@ function dateRange(startStr, endStr){
 // ----- MAPEO API -> objetos internos (mismos nombres cortos de siempre) -----
 // Inventario: {c:codigo, i:interprete, t:titulo, f:presentacion, p:precioVenta, s:stock, rb:rubro}
 function mapProductoApi_(d){
-  return {
-    c: d.codigo, i: d.interprete, t: d.titulo, f: d.presentacion,
-    p: d.precioVenta || 0, // precio EFECTIVO -- el que se cobra (manual si existe, si no el calculado)
-    pc: typeof d.precioCalculado === 'number' ? d.precioCalculado : null, // el "de libro", solo referencia
-    pf: typeof d.precioFinalManual === 'number' ? d.precioFinalManual : null, // null = sin precio manual
-    s: d.stock || 0, rb: d.rubro
-  };
+  return { c: d.codigo, i: d.interprete, t: d.titulo, f: d.presentacion, p: d.precioVenta || 0, s: d.stock || 0, rb: d.rubro };
 }
 // Venta: {row, ventaId, time, code, artist, title, format, priceUnit, qty, total, payment}
 function mapVentaApi_(v){
@@ -1224,14 +1177,9 @@ function mapCierreApi_(h){
 }
 
 // ----- CARGA DE INVENTARIO (una vez al abrir, se refresca tras cada venta) -----
-// productosPrefetched: opcional -- si initApp() ya trajo el catálogo como parte
-// de la carga combinada (accion=estadoInicial), lo usa directo y se ahorra un
-// viaje de red aparte. El resto de los llamados (refresco en segundo plano tras
-// una venta, etc.) siguen llamando cargarInventario() sin argumentos, igual que
-// siempre.
-async function cargarInventario(productosPrefetched){
-  const productos = productosPrefetched || (await apiGet({ action: 'inventario' })).productos;
-  INV = productos.map(mapProductoApi_);
+async function cargarInventario(){
+  const data = await apiGet({ action: 'inventario' });
+  INV = data.productos.map(mapProductoApi_);
   inventarioListo = true;
 }
 function getStock(item){ return item.s || 0; }
@@ -1271,18 +1219,9 @@ document.getElementById('headerDate').textContent = formatDateLong(new Date());
 selectedVentasDay = todayKey();
 
 async function initApp(){
-  // Antes: cargarInventario() + renderVentasDia() + renderCaja() (que a su vez
-  // podía llamar renderGastos/renderRetiros/renderHistorialCierres) pedían cada
-  // uno por su cuenta, hasta 4-6 viajes de red separados apenas se abría la app.
-  // Cada viaje a esta Web App paga un costo fijo aparte de lo que tarda en
-  // calcularse la respuesta (Apps Script entrega el resultado de un doGet a
-  // través de una redirección a un dominio de contenido de Google, nunca directo)
-  // — con estadoInicial se paga ese costo una sola vez, con todo junto.
-  let estado;
   try{
     showToast('Cargando inventario…', { duration: 60000 });
-    estado = await apiGet({ action: 'estadoinicial' });
-    await cargarInventario(estado.productos);
+    await cargarInventario();
     hideToast();
     showConnError(null);
   }catch(err){
@@ -1291,8 +1230,8 @@ async function initApp(){
     return;
   }
   await Promise.all([
-    renderVentasDia(estado.ventasHoy),
-    renderCaja({ caja: estado.cajaAbierta, historial: estado.historial, gastos: estado.gastosTurno, retiros: estado.retirosTurno })
+    renderVentasDia(),
+    renderCaja()
   ]);
   actualizarIndicadorCaja();
 }
@@ -1325,20 +1264,14 @@ function renderResultItem(item, onClick){
     : `<span class="badge badge-danger">Sin stock</span>`;
   const titleText = item.t || '';
   const formatText = item.f ? ' · ' + esc(item.f) : '';
-  const manualTag = item.pf != null ? `<span class="inv-row__manual-tag" title="Precio fijado a mano">manual</span>` : '';
   li.innerHTML =
     `<div class="result-item__artist">${esc(item.i)}</div>` +
     (titleText ? `<div class="result-item__title">${esc(titleText)}${formatText}</div>` : '') +
     `<div class="result-item__meta">
-       <span class="result-item__price-wrap">
-         <span class="result-item__price">${fmtCLP(item.p)}</span>
-         ${manualTag}
-         <button class="entry__edit result-item__edit-price" aria-label="Editar precio">&#9998;</button>
-       </span>
+       <span class="result-item__price">${fmtCLP(item.p)}</span>
        ${stockBadge}
      </div>
      <div class="result-item__code">${esc(item.c)}</div>`;
-  li.querySelector('.result-item__edit-price').onclick = (ev) => { ev.stopPropagation(); abrirEditarPrecio(item); };
   return li;
 }
 
@@ -1354,19 +1287,16 @@ function renderInvRow(item){
     : (stock <= 2 ? `<span class="badge badge-warn">Stock: ${stock}</span>` : `<span class="badge badge-ok">Stock: ${stock}</span>`);
   const titleText = item.t || '';
   const formatText = item.f ? ' · ' + esc(item.f) : '';
-  const manualTag = item.pf != null ? `<span class="inv-row__manual-tag" title="Precio fijado a mano">manual</span>` : '';
   li.innerHTML = `
     <div class="inv-row__main">
       <div class="inv-row__artist">${esc(item.i)}</div>
       ${titleText ? `<div class="inv-row__title">${esc(titleText)}${formatText}</div>` : ''}
     </div>
     <div class="inv-row__price-col">
-      <div class="inv-row__price">${fmtCLP(item.p)}${manualTag}</div>
+      <div class="inv-row__price">${fmtCLP(item.p)}</div>
       <div class="inv-row__code">${esc(item.c)}</div>
     </div>
-    <button class="entry__edit" aria-label="Editar precio">&#9998;</button>
     <div class="inv-row__stock">${stockBadge}</div>`;
-  li.querySelector('.entry__edit').onclick = () => abrirEditarPrecio(item);
   return li;
 }
 
@@ -1395,10 +1325,7 @@ function doSearchVender(){
 // =====================================================================
 // VENDER — carrito (venta con uno o varios productos distintos)
 // =====================================================================
-// cart: [{code, artist, title, format, priceUnit, manual, qty}]
-// "manual" marca si priceUnit viene de un Precio Final fijado a mano (item.pf)
-// en vez del precio calculado — viaja hasta el backend para que Ventas quede
-// con un registro fiel de qué precio se cobró realmente en cada venta.
+// cart: [{code, artist, title, format, priceUnit, qty}]
 function addToCart(item){
   const stock = getStock(item);
   if (stock <= 0){
@@ -1413,7 +1340,7 @@ function addToCart(item){
       existing.qty += 1;
     }
   } else {
-    cart.push({ code: item.c, artist: item.i, title: item.t, format: item.f, priceUnit: item.p, manual: item.pf != null, qty: 1 });
+    cart.push({ code: item.c, artist: item.i, title: item.t, format: item.f, priceUnit: item.p, qty: 1 });
   }
   document.getElementById('saleFormOverlay').classList.add('show');
   renderCartPanel();
@@ -1426,25 +1353,6 @@ function closeSaleForm(){
   document.getElementById('btnAddMore').textContent = '+ Agregar otro producto';
   document.getElementById('searchInputCart').value = '';
   document.getElementById('resultsListCart').innerHTML = '';
-  document.getElementById('sfDescuentoMonto').value = '';
-  document.getElementById('sfDescuentoMotivo').value = '';
-  document.getElementById('sfDescuentoNote').style.display = 'none';
-  document.getElementById('sfSubtotalLine').style.display = 'none';
-  document.getElementById('sfDescuentoLine').style.display = 'none';
-}
-// El descuento se aplica a la venta completa (ej: redondear 103.990 a 100.000), no
-// producto por producto. Para no tener que repartirlo entre varias líneas de Ventas,
-// se le carga entero a UNA sola línea del carrito (la de mayor subtotal, para tener
-// margen de sobra) — la columna H de Ventas ya resta ese monto con su propia fórmula
-// (=IF(...;MAX(0;F*G-P);...)), así que el Total de la venta queda igual de correcto.
-// Por eso el descuento nunca puede superar el subtotal de esa línea más grande: si el
-// vendedor escribe más, se avisa y se aplica el máximo posible con ese carrito.
-function maxDescuentoPermitido(){
-  if (!cart.length) return 0;
-  return Math.max(...cart.map(l => l.priceUnit * l.qty));
-}
-function onDescuentoInput(){
-  renderCartPanel();
 }
 function cartChangeQty(code, delta){
   const line = cart.find(l => l.code === code);
@@ -1495,35 +1403,7 @@ function renderCartPanel(){
       </div>`;
     list.appendChild(li);
   });
-
-  const subtotal = total;
-  const maxDesc = maxDescuentoPermitido();
-  const descInputEl = document.getElementById('sfDescuentoMonto');
-  let descInput = descInputEl ? (parseInt(descInputEl.value, 10) || 0) : 0;
-  if (descInput < 0) descInput = 0;
-  const descAplicado = Math.min(descInput, maxDesc);
-  const totalConDescuento = Math.max(0, subtotal - descAplicado);
-
-  const subtotalLine = document.getElementById('sfSubtotalLine');
-  const descLine = document.getElementById('sfDescuentoLine');
-  const descNote = document.getElementById('sfDescuentoNote');
-  if (descAplicado > 0){
-    subtotalLine.style.display = 'flex';
-    descLine.style.display = 'flex';
-    document.getElementById('sfSubtotal').textContent = fmtCLP(subtotal);
-    document.getElementById('sfDescuentoValue').textContent = '-' + fmtCLP(descAplicado);
-  } else {
-    subtotalLine.style.display = 'none';
-    descLine.style.display = 'none';
-  }
-  if (descInput > maxDesc && maxDesc > 0){
-    descNote.style.display = 'block';
-    descNote.textContent = 'El descuento máximo posible con este carrito es ' + fmtCLP(maxDesc) + ' — se aplicará ese monto.';
-  } else {
-    descNote.style.display = 'none';
-  }
-
-  document.getElementById('sfTotal').textContent = fmtCLP(totalConDescuento);
+  document.getElementById('sfTotal').textContent = fmtCLP(total);
 }
 function selectPay(btn){
   selectedPayment = btn.dataset.pay;
@@ -1571,42 +1451,12 @@ async function confirmarVenta(){
   const day = todayKey();
   const payment = selectedPayment;
   const cartSnapshot = cart.map(l => ({...l}));
-  const subtotalVenta = cartSnapshot.reduce((a,l) => a + l.priceUnit*l.qty, 0);
-
-  // Descuento a la venta completa (ej: redondear el total) — se carga entero a la
-  // línea de mayor subtotal del carrito, tal como se muestra en el resumen.
-  const descInputEl = document.getElementById('sfDescuentoMonto');
-  let descInput = descInputEl ? (parseInt(descInputEl.value, 10) || 0) : 0;
-  if (descInput < 0) descInput = 0;
-  const maxDesc = maxDescuentoPermitido();
-  const descAplicado = Math.min(descInput, maxDesc);
-  const motivoDescuento = (document.getElementById('sfDescuentoMotivo').value || '').trim();
-  const totalVenta = Math.max(0, subtotalVenta - descAplicado);
-
-  let idxLineaDescuento = -1;
-  if (descAplicado > 0){
-    let mejorSubtotal = -1;
-    cartSnapshot.forEach((l, i) => {
-      const sub = l.priceUnit * l.qty;
-      if (sub > mejorSubtotal){ mejorSubtotal = sub; idxLineaDescuento = i; }
-    });
-  }
+  const totalVenta = cartSnapshot.reduce((a,l) => a + l.priceUnit*l.qty, 0);
 
   try{
     await apiPost('venta', {
       fecha: day, hora: time, ventaId, formaPago: payment,
-      lineas: cartSnapshot.map((l, i) => {
-        // precioUnit y manual viajan siempre: sin esto, Ventas recalculaba el
-        // precio solo con una fórmula que mira Inventario en vivo (y encima
-        // apuntaba solo al precio calculado, nunca al Precio Final manual) —
-        // el Total registrado podía no coincidir con lo que de verdad se cobró.
-        const linea = { codigo: l.code, cantidad: l.qty, precioUnit: l.priceUnit, manual: !!l.manual };
-        if (i === idxLineaDescuento){
-          linea.descuentoMonto = descAplicado;
-          if (motivoDescuento) linea.motivoDescuento = motivoDescuento;
-        }
-        return linea;
-      })
+      lineas: cartSnapshot.map(l => ({ codigo: l.code, cantidad: l.qty }))
     });
   }catch(err){
     if (btnConfirmar) btnConfirmar.disabled = false;
@@ -1663,10 +1513,7 @@ function agruparVentas(ventas){
   });
   return order.map(k => map.get(k));
 }
-// ventasHoyPrefetched: opcional -- solo se usa si el día pedido es hoy (initApp()
-// la pasa con lo que ya trajo accion=estadoInicial, para no volver a pedirlo).
-// Cambiar de día con las flechas sigue pidiendo ese día aparte, como siempre.
-async function renderVentasDia(ventasHoyPrefetched){
+async function renderVentasDia(){
   const dayKey = selectedVentasDay || todayKey();
   const isHoy = dayKey === todayKey();
   document.getElementById('ventasFechaInput').value = dayKey;
@@ -1685,8 +1532,8 @@ async function renderVentasDia(ventasHoyPrefetched){
 
   let ventas;
   try{
-    const crudo = (isHoy && ventasHoyPrefetched) ? ventasHoyPrefetched : (await apiGet({ action: 'ventasrango', desde: dayKey, hasta: dayKey })).ventas;
-    ventas = crudo.map(mapVentaApi_);
+    const data = await apiGet({ action: 'ventasrango', desde: dayKey, hasta: dayKey });
+    ventas = data.ventas.map(mapVentaApi_);
   }catch(err){
     emptyText.textContent = 'No se pudieron cargar las ventas: ' + err.message;
     return;
@@ -1869,65 +1716,6 @@ async function guardarEdicionVenta(){
 }
 
 // =====================================================================
-// EDITAR PRECIO FINAL (precio de lista manual, distinto del descuento
-// puntual de una venta) -- se usa desde Inventario y desde la búsqueda
-// de Vender, ambos llaman a la misma función/acción del backend.
-// =====================================================================
-let editingPrecioItem = null; // item de INV actualmente en edición de precio
-function abrirEditarPrecio(item){
-  editingPrecioItem = item;
-  document.getElementById('epArtist').textContent = item.i;
-  document.getElementById('epTitle').textContent = [item.t, item.f].filter(Boolean).join(' · ');
-  const calculado = item.pc != null ? item.pc : item.p;
-  document.getElementById('epCalculado').textContent = 'Precio calculado (automático): ' + fmtCLP(calculado);
-  document.getElementById('epPrecioFinal').value = item.pf != null ? item.pf : '';
-  document.getElementById('editPrecioOverlay').classList.add('show');
-}
-function closeEditarPrecio(){
-  editingPrecioItem = null;
-  document.getElementById('editPrecioOverlay').classList.remove('show');
-}
-async function guardarPrecioFinal(){
-  if (!editingPrecioItem) return;
-  const raw = document.getElementById('epPrecioFinal').value.trim();
-  let precioFinal = null;
-  if (raw !== ''){
-    const n = Number(raw);
-    if (!isFinite(n) || n < 0){ showToast('Precio inválido'); return; }
-    precioFinal = n;
-  }
-  const codigo = editingPrecioItem.c;
-  try{
-    await apiPost('preciofinal', { codigo, precioFinal });
-  }catch(err){
-    showToast('No se pudo guardar el precio: ' + err.message, { duration: 4500 });
-    return;
-  }
-  // se refleja al toque en memoria, sin esperar a que vuelva a cargar todo el catálogo
-  const it = INV.find(x => x.c === codigo);
-  if (it){
-    it.pf = precioFinal;
-    it.p = precioFinal != null ? precioFinal : (it.pc != null ? it.pc : it.p);
-  }
-  // si el producto ya está en el carrito de una venta en curso, esa línea se
-  // agregó con el precio de ese momento (es una "foto" congelada, a propósito,
-  // para que el precio de una venta no cambie solo mientras se está cobrando)
-  // -- pero si el vendedor mismo acaba de editar el precio con la intención de
-  // que se use en ESTA venta, hay que actualizar también la línea ya puesta.
-  const lineaCarrito = cart.find(l => l.code === codigo);
-  if (lineaCarrito && it){
-    lineaCarrito.priceUnit = it.p;
-    lineaCarrito.manual = it.pf != null;
-  }
-  closeEditarPrecio();
-  refreshInventarioIfVisible();
-  if (document.getElementById('view-vender').classList.contains('active')) doSearchVender();
-  if (lineaCarrito) renderCartPanel();
-  showToast(precioFinal != null ? 'Precio actualizado' : 'Precio restablecido al automático');
-  cargarInventario().then(() => { refreshInventarioIfVisible(); }).catch(err => {});
-}
-
-// =====================================================================
 // CONFIRM / DELETE (compartido)
 // =====================================================================
 async function doPendingDelete(){
@@ -1978,15 +1766,12 @@ function closeConfirm(){
 // =====================================================================
 // CAJA DE FIN DE SEMANA
 // =====================================================================
-// prefetched: opcional -- {caja, historial, gastos, retiros} ya traídos por
-// initApp() vía accion=estadoInicial, para no volver a pedirlos por separado.
-// Abrir/cerrar caja, agregar gastos/retiros, etc. siguen llamando renderCaja()
-// sin argumentos y piden todo fresco, como siempre.
-async function renderCaja(prefetched){
+async function renderCaja(){
   const cerradaDiv = document.getElementById('cajaCerrada');
   const abiertaDiv = document.getElementById('cajaAbierta');
   try{
-    cajaAbiertaActual = prefetched ? prefetched.caja : (await apiGet({ action: 'cajaabierta' })).caja;
+    const data = await apiGet({ action: 'cajaabierta' });
+    cajaAbiertaActual = data.caja;
   }catch(err){
     showToast('No se pudo consultar el estado de la caja: ' + err.message, { duration: 4500 });
     return;
@@ -1994,7 +1779,7 @@ async function renderCaja(prefetched){
   if (!cajaAbiertaActual){
     cerradaDiv.style.display = 'block';
     abiertaDiv.style.display = 'none';
-    await renderHistorialCierres(prefetched && prefetched.historial);
+    await renderHistorialCierres();
     actualizarIndicadorCaja();
     return;
   }
@@ -2004,14 +1789,14 @@ async function renderCaja(prefetched){
     `Caja abierta desde el ${cajaAbiertaActual.fechaApertura} con ${fmtCLP(cajaAbiertaActual.efectivoInicial)} de efectivo inicial.`;
   document.getElementById('cajaEfectivoFinal').value = '';
   document.getElementById('cierreResultado').innerHTML = '';
-  await renderGastos(prefetched && prefetched.gastos);
-  await renderRetiros(prefetched && prefetched.retiros);
-  await renderHistorialCierres(prefetched && prefetched.historial);
+  await renderGastos();
+  await renderRetiros();
+  await renderHistorialCierres();
   actualizarIndicadorCaja();
 }
 // lista acumulada de los cierres RECIENTES (ultimos 6 meses), con opcion de editar cada uno —
 // el historial completo sigue en la Hoja (ver exportCierresXLSX, que pide el historial completo aparte).
-async function renderHistorialCierres(historialPrefetched){
+async function renderHistorialCierres(){
   const list = document.getElementById('cierresHistList');
   const empty = document.getElementById('cierresHistEmpty');
   const note = document.getElementById('cierresHistNote');
@@ -2019,8 +1804,8 @@ async function renderHistorialCierres(historialPrefetched){
   list.innerHTML = '';
   let historial;
   try{
-    const crudo = historialPrefetched || (await apiGet({ action: 'historial' })).cierres;
-    historial = crudo.map(mapCierreApi_);
+    const data = await apiGet({ action: 'historial' });
+    historial = data.cierres.map(mapCierreApi_);
   }catch(err){
     empty.style.display = 'block';
     empty.textContent = 'No se pudo cargar el historial: ' + err.message;
@@ -2104,15 +1889,15 @@ async function registrarGasto(){
   await renderGastos();
   showToast('Gasto agregado');
 }
-async function renderGastos(gastosPrefetched){
+async function renderGastos(){
   const list = document.getElementById('gastosList');
   if (!list) return;
   list.innerHTML = '';
   if (!cajaAbiertaActual){ gastosTurnoActual = []; return; }
   let gastos;
   try{
-    const crudo = gastosPrefetched || (await apiGet({ action: 'gastosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() })).gastos;
-    gastos = crudo.map(mapGastoApi_);
+    const data = await apiGet({ action: 'gastosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() });
+    gastos = data.gastos.map(mapGastoApi_);
   }catch(err){
     list.innerHTML = `<li class="no-results">No se pudieron cargar los gastos: ${esc(err.message)}</li>`;
     return;
@@ -2161,15 +1946,15 @@ async function registrarRetiro(){
   await renderRetiros();
   showToast('Retiro agregado');
 }
-async function renderRetiros(retirosPrefetched){
+async function renderRetiros(){
   const list = document.getElementById('retirosList');
   if (!list) return;
   list.innerHTML = '';
   if (!cajaAbiertaActual){ retirosTurnoActual = []; return; }
   let retiros;
   try{
-    const crudo = retirosPrefetched || (await apiGet({ action: 'retirosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() })).retiros;
-    retiros = crudo.map(mapRetiroApi_);
+    const data = await apiGet({ action: 'retirosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() });
+    retiros = data.retiros.map(mapRetiroApi_);
   }catch(err){
     list.innerHTML = `<li class="no-results">No se pudieron cargar los retiros: ${esc(err.message)}</li>`;
     return;
@@ -2291,8 +2076,9 @@ function renderInventario(){
   }
   let items = q.length >= 2 ? searchInv(q, INV.length) : INV.slice();
   items = items.map(it => ({...it, _stock: getStock(it)}));
-  if (invFilter === 'bajo') items = items.filter(it => it._stock > 0 && it._stock <= 2);
-  else if (invFilter === 'sinstock') items = items.filter(it => it._stock === 0);
+  if (invFilter === 'sinstock') items = items.filter(it => it._stock === 0);
+  else if (invFilter === 'vinilo') items = items.filter(it => it.rb === 'Vinilo');
+  else if (invFilter === 'cd') items = items.filter(it => it.rb === 'CD');
   items.sort((a,b) => a.i.localeCompare(b.i));
   const shown = items.slice(0, 60);
   document.getElementById('invCount').textContent =
@@ -2359,9 +2145,8 @@ function renderReportesConDatos(ventasAnioConFecha, gastosMes, monthDays, yearDa
   document.getElementById('repUnidadesTurno').textContent = unidadesTurno;
   document.getElementById('repUnidadesTurnoSub').textContent = turnoSub;
 
-  // vendido vs neto: neto = vendido / 1.19 (el precio final ya incluye el 19% de IVA).
-  // "vendido" (bruto) ya viene con los descuentos aplicados, porque v.total se lee de
-  // Ventas!H, que los resta directo en la fórmula de la propia hoja.
+  // vendido vs neto: neto = vendido / 1.19 (el precio final ya incluye el 19% de IVA;
+  // la app hoy no captura descuentos, así que el bruto y el "vendido" son el mismo total).
   const netoMes = Math.max(0, ventasTotalMes / 1.19);
   document.getElementById('repVendidoNetoBruto').textContent = fmtCLP(ventasTotalMes);
   document.getElementById('repVendidoNetoNeto').textContent = fmtCLP(netoMes);
