@@ -2077,8 +2077,8 @@ function renderInventario(){
   let items = q.length >= 2 ? searchInv(q, INV.length) : INV.slice();
   items = items.map(it => ({...it, _stock: getStock(it)}));
   if (invFilter === 'sinstock') items = items.filter(it => it._stock === 0);
-  else if (invFilter === 'vinilo') items = items.filter(it => it.rb === 'Vinilo');
-  else if (invFilter === 'cd') items = items.filter(it => it.rb === 'CD');
+  else if (invFilter === 'vinilo') items = items.filter(it => it.rb === 'Vinilo' && it._stock > 0);
+  else if (invFilter === 'cd') items = items.filter(it => it.rb === 'CD' && it._stock > 0);
   items.sort((a,b) => a.i.localeCompare(b.i));
   const shown = items.slice(0, 60);
   document.getElementById('invCount').textContent =
