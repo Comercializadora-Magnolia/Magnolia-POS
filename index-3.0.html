@@ -184,6 +184,12 @@ button{font-family:inherit;}
 .result-item__title{ font-size:calc(15px * var(--fs)); color:var(--ink-text-soft); margin-top:2px; }
 .result-item__meta{ display:flex; justify-content:space-between; align-items:center; margin-top:7px; }
 .result-item__price{ font-weight:700; font-size:calc(18px * var(--fs)); color:var(--gold-700); font-variant-numeric:tabular-nums; }
+.result-item__price-wrap{ display:inline-flex; align-items:center; gap:3px; }
+.edit-price-btn{
+  background:none; border:none; cursor:pointer; padding:3px 6px; line-height:1;
+  font-size:calc(14.5px * var(--fs)); color:var(--ink-text-soft); border-radius:6px;
+}
+.edit-price-btn:hover, .edit-price-btn:active{ color:var(--gold-700); background:rgba(182,134,63,0.14); }
 .result-item__code{ font-size:calc(12px * var(--fs)); color:#a89a80; font-family:ui-monospace, 'SF Mono', Consolas, monospace; margin-top:4px; }
 
 /* ===== INVENTARIO — fila compacta ===== */
@@ -1061,6 +1067,28 @@ button{font-family:inherit;}
     </div>
   </div>
 
+  <!-- ===== EDITAR PRECIO DE UN PRODUCTO DEL CATALOGO (Precio Final manual) ===== -->
+  <div class="overlay" id="editPriceOverlay">
+    <div class="overlay__panel">
+      <div class="sale-form__header">
+        <div>
+          <div class="sale-form__artist" id="epArtist"></div>
+          <div class="sale-form__title-line" id="epTitle"></div>
+        </div>
+        <button class="close-x" onclick="cerrarEditarPrecio()" aria-label="Cerrar">&times;</button>
+      </div>
+      <p class="section-hint" style="margin-top:-6px;" id="epCalculado"></p>
+      <div class="form-row">
+        <label>Precio manual ($)</label>
+        <input id="epPrecio" type="number" inputmode="numeric" min="0" placeholder="Vacío = usar el precio calculado">
+      </div>
+      <div class="overlay__actions">
+        <button class="btn btn-outline" onclick="cerrarEditarPrecio()">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmarEditarPrecio()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -1186,9 +1214,15 @@ function dateRange(startStr, endStr){
 }
 
 // ----- MAPEO API -> objetos internos (mismos nombres cortos de siempre) -----
-// Inventario: {c:codigo, i:interprete, t:titulo, f:presentacion, p:precioVenta, s:stock, rb:rubro}
+// Inventario: {c:codigo, i:interprete, t:titulo, f:presentacion, p:precioVenta, s:stock, rb:rubro,
+//              pc:precioCalculado (de libro, margen+IVA), pm:precioFinalManual (null = sin override)}
 function mapProductoApi_(d){
-  return { c: d.codigo, i: d.interprete, t: d.titulo, f: d.presentacion, p: d.precioVenta || 0, s: d.stock || 0, rb: d.rubro };
+  return {
+    c: d.codigo, i: d.interprete, t: d.titulo, f: d.presentacion, p: d.precioVenta || 0,
+    s: d.stock || 0, rb: d.rubro,
+    pc: typeof d.precioCalculado === 'number' ? d.precioCalculado : null,
+    pm: typeof d.precioFinalManual === 'number' ? d.precioFinalManual : null
+  };
 }
 // Venta: {row, ventaId, time, code, artist, title, format, priceUnit, qty, total, payment}
 function mapVentaApi_(v){
@@ -1308,7 +1342,10 @@ function renderResultItem(item, onClick){
     `<div class="result-item__artist">${esc(item.i)}</div>` +
     (titleText ? `<div class="result-item__title">${esc(titleText)}${formatText}</div>` : '') +
     `<div class="result-item__meta">
-       <span class="result-item__price">${fmtCLP(item.p)}</span>
+       <span class="result-item__price-wrap">
+         <span class="result-item__price">${fmtCLP(item.p)}</span>
+         <button type="button" class="edit-price-btn" title="Editar precio" aria-label="Editar precio" onclick="event.stopPropagation(); abrirEditarPrecio('${esc(item.c)}')">&#9998;</button>
+       </span>
        ${stockBadge}
      </div>
      <div class="result-item__code">${esc(item.c)}</div>`;
@@ -1448,6 +1485,54 @@ function confirmarAgregarOtros(){
   document.getElementById('saleFormOverlay').classList.add('show');
   renderCartPanel();
 }
+
+// ----- EDITAR PRECIO DE UN PRODUCTO DEL CATALOGO (Precio Final manual) -----
+// Antes de vender: permite fijar un precio manual para un producto puntual
+// (reemplaza al precio calculado con margen+IVA) o quitarlo para volver a
+// usar el calculado. Usa la accion 'preciofinal' del backend (ya existia,
+// pero nada del frontend la llamaba todavia).
+function abrirEditarPrecio(codigo){
+  const item = INV.find(it => it.c === codigo);
+  if (!item) return;
+  const tituloLinea = (item.t || '') + (item.f ? ' · ' + item.f : '');
+  document.getElementById('epArtist').textContent = item.i;
+  document.getElementById('epTitle').textContent = tituloLinea;
+  const calc = item.pc != null ? item.pc : item.p;
+  document.getElementById('epCalculado').textContent = 'Precio calculado: ' + fmtCLP(calc);
+  document.getElementById('epPrecio').value = (item.pm != null) ? item.pm : '';
+  document.getElementById('epPrecio').dataset.codigo = codigo;
+  document.getElementById('editPriceOverlay').classList.add('show');
+  document.getElementById('epPrecio').focus();
+}
+function cerrarEditarPrecio(){
+  document.getElementById('editPriceOverlay').classList.remove('show');
+}
+async function confirmarEditarPrecio(){
+  const codigo = document.getElementById('epPrecio').dataset.codigo;
+  const raw = document.getElementById('epPrecio').value;
+  const dejandoVacio = raw.trim() === '';
+  const precioFinal = dejandoVacio ? null : Number(raw);
+  if (!dejandoVacio && (!isFinite(precioFinal) || precioFinal < 0)){
+    showToast('Escribe un precio válido');
+    return;
+  }
+  try{
+    await apiPost('preciofinal', { codigo, precioFinal });
+  }catch(err){
+    showToast('No se pudo actualizar el precio: ' + err.message, { duration: 4500 });
+    return;
+  }
+  const item = INV.find(it => it.c === codigo);
+  if (item){
+    item.pm = precioFinal;
+    item.p = precioFinal !== null ? precioFinal : (item.pc != null ? item.pc : item.p);
+  }
+  cerrarEditarPrecio();
+  showToast(precioFinal !== null ? 'Precio actualizado' : 'Se quitó el precio manual — vuelve a usar el calculado');
+  // refresca las listas de resultados que puedan estar visibles con el precio nuevo
+  if (typeof doSearchVender === 'function') doSearchVender();
+  if (typeof doSearchCart === 'function') doSearchCart();
+}
 function renderCartPanel(){
   const list = document.getElementById('cartList');
   list.innerHTML = '';
@@ -1530,9 +1615,25 @@ async function confirmarVenta(){
       fecha: day, hora: time, ventaId, formaPago: payment,
       lineas: cartSnapshot.map(l => {
         const linea = { codigo: l.code, cantidad: l.qty };
-        // "Otros": el backend no tiene de donde sacar descripcion ni precio
-        // (no hay codigo real que buscar en Inventario), asi que van directo.
-        if (l.otros){ linea.otros = true; linea.descripcion = l.title; linea.precioUnit = l.priceUnit; }
+        if (l.otros){
+          // "Otros": el backend no tiene de donde sacar descripcion ni precio
+          // (no hay codigo real que buscar en Inventario), asi que van directo.
+          linea.otros = true;
+          linea.descripcion = l.title;
+          linea.precioUnit = l.priceUnit;
+        } else {
+          // Se manda siempre el precio (y los demas datos) ya resueltos por la
+          // app -- Ventas queda como registro fijo, sin depender de que la
+          // formula de esa fila siga viva. Antes esto solo se mandaba para
+          // "Otros"; una venta normal dependia 100% de la formula de esa fila
+          // en la Hoja, y si esa fila ya habia sido usada y borrada antes
+          // (el X de "Ventas del dia" limpia esa formula), la venta quedaba
+          // en $0 al reusar la fila -- por eso "Los Jaivas" salio en $0.
+          linea.precioUnit = l.priceUnit;
+          linea.interprete = l.artist;
+          linea.titulo = l.title || '';
+          linea.formato = l.format || '';
+        }
         return linea;
       })
     });
