@@ -586,6 +586,15 @@ button{font-family:inherit;}
     box-shadow:0 0 60px rgba(0,0,0,.35);
   }
   .content{ overflow-y:auto; height:100%; }
+  /* Aca ".content" es su propia caja de scroll y ya arranca DEBAJO del
+     header (que es un hermano suyo, no un elemento "fijo" superpuesto) --
+     por eso la barra de filtros debe pegarse al techo de ESA caja (top:0),
+     no otra vez a --header-h (esa variable es solo para el celular, donde
+     el header sí flota encima con position:fixed). Usar --header-h acá
+     dejaba un hueco del alto del header entre el header y la barra, hueco
+     por el que se veía pasar la lista al hacer scroll -- el bug de "el
+     buscador queda fijo a media pantalla y la lista se mueve por detras". */
+  .sticky-filter-bar{ top:0; }
 }
 
 /* --- celular: header/tabbar fijos al viewport visual en vez de sticky al
@@ -665,7 +674,8 @@ button{font-family:inherit;}
 
           <ul class="cart-list" id="cartList"></ul>
 
-          <button class="btn-hoy-link btn-hoy-link--bordered" id="btnAddMore" onclick="toggleAddMore()" style="margin:0 0 12px;">+ Agregar otro producto</button>
+          <button class="btn-hoy-link btn-hoy-link--bordered" id="btnAddMore" onclick="toggleAddMore()" style="margin:0 0 8px;">+ Agregar otro producto</button>
+          <button class="btn-hoy-link btn-hoy-link--bordered" onclick="abrirFormOtros()" style="margin:0 0 12px;">+ Vender algo que no está en el inventario</button>
           <div id="cartAddMoreBox" style="display:none; margin-bottom:14px;">
             <div class="search-box" style="margin-bottom:8px;">
               <svg class="search-icon" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="M14 14L18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -694,6 +704,7 @@ button{font-family:inherit;}
         <svg class="search-icon" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="M14 14L18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         <input type="text" id="searchInputVender" placeholder="Buscar disco..." autocomplete="off">
       </div>
+      <button class="btn-hoy-link btn-hoy-link--bordered" onclick="abrirFormOtros()" style="margin:8px 0 4px;">+ Vender algo que no está en el inventario</button>
       <ul class="results-list" id="resultsListVender"></ul>
 
       <div class="divider-label">Ventas del día</div>
@@ -1017,6 +1028,35 @@ button{font-family:inherit;}
       <div class="overlay__actions">
         <button class="btn btn-outline" onclick="closeEditVenta()">Cancelar</button>
         <button class="btn btn-primary" onclick="guardarEdicionVenta()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== VENDER ALGO QUE NO ESTA EN EL INVENTARIO ("Otros") ===== -->
+  <div class="overlay" id="otrosFormOverlay">
+    <div class="overlay__panel">
+      <div class="sale-form__header">
+        <div class="sale-form__cart-title">Vender algo que no está en el inventario</div>
+        <button class="close-x" onclick="cerrarFormOtros()" aria-label="Cerrar">&times;</button>
+      </div>
+      <p class="section-hint" style="margin-top:-6px;">Para cualquier cosa que no sea un disco del catálogo: un CD suelto, una película, un equipo, etc.</p>
+      <div class="form-row">
+        <label>Descripción</label>
+        <input id="otrosDescripcion" type="text" placeholder="Ej: Tocadiscos usado Sony, DVD Star Wars...">
+      </div>
+      <div class="grid-2">
+        <div class="form-row" style="margin-bottom:0;">
+          <label>Precio ($)</label>
+          <input id="otrosPrecio" type="number" inputmode="numeric" min="0">
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label>Cantidad</label>
+          <input id="otrosCantidad" type="number" inputmode="numeric" min="1" value="1">
+        </div>
+      </div>
+      <div class="overlay__actions">
+        <button class="btn btn-outline" onclick="cerrarFormOtros()">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmarAgregarOtros()">Agregar a la venta</button>
       </div>
     </div>
   </div>
@@ -1378,6 +1418,36 @@ function toggleAddMore(){
   btn.textContent = showing ? '+ Agregar otro producto' : 'Cerrar búsqueda';
   if (!showing) document.getElementById('searchInputCart').focus();
 }
+// ----- "Otros": vender algo que no esta en el catalogo (Inventario) -----
+// Cualquier cosa a cualquier precio -- un CD suelto, una pelicula, un
+// equipo de reproduccion, etc. No tiene codigo de barra real ni stock que
+// descontar, asi que en vez de buscarlo en el catalogo se escribe a mano:
+// descripcion libre, precio y cantidad. Cada linea "Otros" usa un codigo
+// interno unico (nunca choca con un codigo de barra real, que es siempre
+// numerico) solo para que el carrito la pueda identificar y editar/quitar
+// por separado de las demas.
+function abrirFormOtros(){
+  document.getElementById('otrosDescripcion').value = '';
+  document.getElementById('otrosPrecio').value = '';
+  document.getElementById('otrosCantidad').value = 1;
+  document.getElementById('otrosFormOverlay').classList.add('show');
+  document.getElementById('otrosDescripcion').focus();
+}
+function cerrarFormOtros(){
+  document.getElementById('otrosFormOverlay').classList.remove('show');
+}
+function confirmarAgregarOtros(){
+  const descripcion = document.getElementById('otrosDescripcion').value.trim();
+  const precio = parseFloat(document.getElementById('otrosPrecio').value);
+  const cantidad = Math.max(1, parseInt(document.getElementById('otrosCantidad').value, 10) || 1);
+  if (!descripcion){ showToast('Escribe una descripción'); return; }
+  if (!isFinite(precio) || precio < 0){ showToast('Escribe un precio válido'); return; }
+  const code = 'OTROS-' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
+  cart.push({ code, artist: 'Otros', title: descripcion, format: '', priceUnit: precio, qty: cantidad, otros: true });
+  cerrarFormOtros();
+  document.getElementById('saleFormOverlay').classList.add('show');
+  renderCartPanel();
+}
 function renderCartPanel(){
   const list = document.getElementById('cartList');
   list.innerHTML = '';
@@ -1436,7 +1506,9 @@ function doSearchCart(){
 async function confirmarVenta(){
   if (cart.length === 0) return;
   // valida stock una ultima vez por si cambio mientras el carrito estaba abierto
+  // (las lineas "Otros" no tienen stock que validar -- no son del catalogo)
   for (const line of cart){
+    if (line.otros) continue;
     const item = INV.find(it => it.c === line.code);
     const stock = item ? getStock(item) : 0;
     if (stock < line.qty){
@@ -1456,7 +1528,13 @@ async function confirmarVenta(){
   try{
     await apiPost('venta', {
       fecha: day, hora: time, ventaId, formaPago: payment,
-      lineas: cartSnapshot.map(l => ({ codigo: l.code, cantidad: l.qty }))
+      lineas: cartSnapshot.map(l => {
+        const linea = { codigo: l.code, cantidad: l.qty };
+        // "Otros": el backend no tiene de donde sacar descripcion ni precio
+        // (no hay codigo real que buscar en Inventario), asi que van directo.
+        if (l.otros){ linea.otros = true; linea.descripcion = l.title; linea.precioUnit = l.priceUnit; }
+        return linea;
+      })
     });
   }catch(err){
     if (btnConfirmar) btnConfirmar.disabled = false;
