@@ -2290,8 +2290,16 @@ async function renderReportes(){
     ]);
     ventasAnio = ventasData.ventas.map(mapVentaApi_);
     gastosMesRaw = gastosData.gastos.map(mapGastoApi_);
+    // [MAGNOLIA-DEBUG] temporal, para diagnosticar por qué Reportes no
+    // reflejaba ventas ya confirmadas en el servidor -- se puede borrar una
+    // vez resuelto. Muestra en la Consola exactamente lo que llegó y con qué
+    // se está comparando, sin depender de que el toast de error se alcance a ver.
+    console.log('[MAGNOLIA-DEBUG] renderReportes: ventasAnio recibidas =', ventasAnio.length, ventasAnio);
+    console.log('[MAGNOLIA-DEBUG] renderReportes: monthDays =', monthDays);
+    console.log('[MAGNOLIA-DEBUG] renderReportes: yearDays rango =', yStart, '→', yEnd);
   }catch(err){
-    showToast('No se pudieron cargar los reportes: ' + err.message, { duration: 4500 });
+    console.error('[MAGNOLIA-DEBUG] renderReportes: la carga falló ->', err);
+    showToast('No se pudieron cargar los reportes: ' + err.message, { duration: 8000 });
     return;
   }
   renderReportesConDatos(ventasAnio, gastosMesRaw, monthDays, yearDays);
