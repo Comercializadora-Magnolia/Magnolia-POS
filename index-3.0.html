@@ -1327,7 +1327,6 @@ async function initApp(){
   // reloj local: no debe bloquear el arranque de la app.
   try{
     const ping = await apiGet({ action: 'ping' });
-    console.log('[MAGNOLIA-DEBUG] initApp: respuesta de ping =', ping); // temporal
     if (ping && ping.hoy){
       SERVER_TODAY_KEY = ping.hoy;
       const [y, m, d] = ping.hoy.split('-').map(Number);
@@ -2322,9 +2321,6 @@ async function renderReportes(){
   const yearDays = getYearDays();
   const monthDays = getMonthDays();
   const yStart = yearDays[0], yEnd = yearDays[yearDays.length-1];
-  // [MAGNOLIA-DEBUG] temporal -- se saca apenas se resuelva el problema de Reportes en $0.
-  console.log('[MAGNOLIA-DEBUG] renderReportes: SERVER_TODAY_KEY =', SERVER_TODAY_KEY, ' todayKey() =', todayKey());
-  console.log('[MAGNOLIA-DEBUG] renderReportes: pidiendo ventasrango desde', yStart, 'hasta', yEnd);
 
   let ventasAnio = [], gastosMesRaw = [];
   try{
@@ -2332,13 +2328,10 @@ async function renderReportes(){
       apiGet({ action: 'ventasrango', desde: yStart, hasta: yEnd }),
       apiGet({ action: 'gastosrango', desde: firstOfMonthKey(todayKey()), hasta: todayKey() })
     ]);
-    console.log('[MAGNOLIA-DEBUG] renderReportes: respuesta cruda ventasrango =', ventasData);
     ventasAnio = ventasData.ventas.map(mapVentaApi_);
     gastosMesRaw = gastosData.gastos.map(mapGastoApi_);
-    console.log('[MAGNOLIA-DEBUG] renderReportes: ventasAnio ya mapeadas =', ventasAnio);
-    console.log('[MAGNOLIA-DEBUG] renderReportes: monthDays =', monthDays);
   }catch(err){
-    console.error('[MAGNOLIA-DEBUG] renderReportes: la carga falló ->', err);
+    console.error('renderReportes: la carga falló ->', err);
     showToast('No se pudieron cargar los reportes: ' + err.message, { duration: 8000 });
     return;
   }
