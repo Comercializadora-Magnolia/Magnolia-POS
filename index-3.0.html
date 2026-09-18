@@ -1215,13 +1215,27 @@ function addDaysToKey(dayKeyStr, delta){
   d.setDate(d.getDate() + delta);
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
+// Arma la lista de días (yyyy-MM-dd) entre dos fechas, inclusive.
+// OJO -- construida con horario UTC a propósito (T00:00:00Z + setUTCDate),
+// nunca con la hora local. Encontramos un bug real: con horario LOCAL, el día
+// que "d" iba acumulando con setDate() sumaba una hora de más apenas se
+// cruzaba el cambio de horario de verano (a partir del 6 de septiembre de
+// 2026 en Chile) -- porque "d" venía arrastrando incrementos desde enero
+// (antes del cambio de hora) y "end" se creaba de nuevo desde el string cada
+// vez (después del cambio de hora), así que terminaban con una hora de
+// diferencia. Esa hora de más hacía que la comparación "d <= end" fallara UN
+// DÍA ANTES de lo debido, y el día de HOY se quedaba afuera del rango --
+// exactamente lo que le pasaba a Reportes (pedía los datos "hasta ayer" sin
+// que nadie lo notara, porque el resto de la fecha sí se veía bien). Usando
+// horario UTC de punta a punta este problema no puede volver a pasar, porque
+// UTC no tiene cambios de horario de verano.
 function dateRange(startStr, endStr){
   const out = [];
-  let d = new Date(startStr + 'T00:00:00');
-  const end = new Date(endStr + 'T00:00:00');
+  let d = new Date(startStr + 'T00:00:00Z');
+  const end = new Date(endStr + 'T00:00:00Z');
   while (d <= end){
-    out.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'));
-    d.setDate(d.getDate()+1);
+    out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate()+1);
   }
   return out;
 }
