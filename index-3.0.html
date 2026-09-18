@@ -1165,8 +1165,17 @@ let retirosTurnoActual = [];
 let historialCierresActual = [];
 let cajaAbiertaActual = null; // {_row, fechaApertura, efectivoInicial} o null
 
+// Fecha de "hoy" según el reloj del SERVIDOR (Google), en formato yyyy-MM-dd.
+// Se pide una vez al arrancar (ver initApp) para no depender del reloj de la
+// computadora donde corre la app: si ese reloj está mal puesto, todayKey()
+// podía calcular un día distinto al que el servidor usa para guardar cada
+// venta, y entonces las ventas de "hoy" no aparecían en Reportes. Si el
+// pedido al servidor falla, se sigue usando el reloj local como respaldo.
+let SERVER_TODAY_KEY = null;
+
 // ----- DATE HELPERS -----
 function todayKey(){
+  if (SERVER_TODAY_KEY) return SERVER_TODAY_KEY;
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
@@ -1297,6 +1306,23 @@ document.getElementById('headerDate').textContent = formatDateLong(new Date());
 selectedVentasDay = todayKey();
 
 async function initApp(){
+  // Le preguntamos al servidor qué día es "hoy" (el mismo reloj que usa para
+  // guardar cada venta) antes de cargar cualquier otra cosa, para que toda la
+  // app — Ventas del día, Reportes, Caja — use esa fecha y no la del reloj de
+  // esta computadora. Si el pedido falla (sin internet, etc.) seguimos con el
+  // reloj local: no debe bloquear el arranque de la app.
+  try{
+    const ping = await apiGet({ action: 'ping' });
+    if (ping && ping.hoy){
+      SERVER_TODAY_KEY = ping.hoy;
+      const [y, m, d] = ping.hoy.split('-').map(Number);
+      document.getElementById('headerDate').textContent = formatDateLong(new Date(y, m - 1, d));
+      selectedVentasDay = todayKey();
+    }
+  }catch(err){
+    console.error('No se pudo obtener la fecha del servidor, se usa el reloj local:', err);
+  }
+
   try{
     showToast('Cargando inventario…', { duration: 60000 });
     await cargarInventario();
@@ -2290,15 +2316,7 @@ async function renderReportes(){
     ]);
     ventasAnio = ventasData.ventas.map(mapVentaApi_);
     gastosMesRaw = gastosData.gastos.map(mapGastoApi_);
-    // [MAGNOLIA-DEBUG] temporal, para diagnosticar por qué Reportes no
-    // reflejaba ventas ya confirmadas en el servidor -- se puede borrar una
-    // vez resuelto. Muestra en la Consola exactamente lo que llegó y con qué
-    // se está comparando, sin depender de que el toast de error se alcance a ver.
-    console.log('[MAGNOLIA-DEBUG] renderReportes: ventasAnio recibidas =', ventasAnio.length, ventasAnio);
-    console.log('[MAGNOLIA-DEBUG] renderReportes: monthDays =', monthDays);
-    console.log('[MAGNOLIA-DEBUG] renderReportes: yearDays rango =', yStart, '→', yEnd);
   }catch(err){
-    console.error('[MAGNOLIA-DEBUG] renderReportes: la carga falló ->', err);
     showToast('No se pudieron cargar los reportes: ' + err.message, { duration: 8000 });
     return;
   }
