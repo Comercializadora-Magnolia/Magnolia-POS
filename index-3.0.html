@@ -1113,7 +1113,11 @@ async function apiGet(params){
   const qs = new URLSearchParams(Object.assign({ token: APP_TOKEN }, params || {})).toString();
   let res;
   try{
-    res = await fetch(API_URL + (qs ? '?' + qs : ''));
+    // cache:'no-store' -- sin esto, el navegador puede reusar una respuesta
+    // vieja para la misma URL (ej. "ventasrango" del mismo día pide siempre
+    // la misma dirección), y una venta recién corregida en la Hoja no se
+    // reflejaba en Reportes hasta recargar la página entera a la fuerza.
+    res = await fetch(API_URL + (qs ? '?' + qs : ''), { cache: 'no-store' });
   }catch(err){
     throw new Error('No se pudo conectar — revisa tu conexión a internet.');
   }
