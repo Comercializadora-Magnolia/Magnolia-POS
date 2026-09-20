@@ -39,7 +39,6 @@
   --danger:#b3261e; --danger-bg:#fbeae9;
   --info:#3a6690; --info-bg:#eaf1f8;
   --focus-ring:#8a5a20;
-  --header-h:84px;
   --font-display:'Fraunces', Georgia, 'Times New Roman', serif;
   --font-body:'Hanken Grotesk', -apple-system, 'Segoe UI', system-ui, sans-serif;
 }
@@ -62,10 +61,21 @@ button{font-family:inherit;}
   *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;}
 }
 
+/* .app ocupa siempre el alto exacto del viewport y es la unica caja que no
+   hace scroll -- adentro, ".content" es la unica zona que se desplaza (ver
+   mas abajo). Asi el header y la barra inferior son hermanos normales del
+   contenido, nunca "position:fixed/sticky" sobre el documento -- esto evita
+   que salten o queden flotando a mitad de pantalla cuando el navegador
+   (sobre todo el navegador interno de WhatsApp) esconde/muestra su barra de
+   direcciones o cuando se abre el teclado. Es la misma arquitectura que ya
+   se usaba solo en pantallas de escritorio (ver mas abajo) -- ahora se aplica
+   siempre, en vez de alternar con position:fixed en celular. */
 .app{
   max-width:640px;
   margin:0 auto;
-  min-height:100vh;
+  height:100vh;
+  height:100dvh;
+  overflow:hidden;
   display:flex;
   flex-direction:column;
   background:var(--paper);
@@ -75,7 +85,9 @@ button{font-family:inherit;}
 .header{
   background:var(--ink-950);
   padding:14px 18px 12px;
-  position:sticky; top:0; z-index:50;
+  position:relative; /* mantiene el punto de referencia de .header::after (antes lo daba position:sticky) */
+  z-index:50;
+  flex:0 0 auto;
   display:flex; flex-direction:column; gap:9px;
   border-bottom:1px solid var(--ink-700);
 }
@@ -116,8 +128,10 @@ button{font-family:inherit;}
 
 /* ===== CONTENT ===== */
 .content{
-  flex:1;
-  padding:16px 16px 96px;
+  flex:1 1 auto;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:16px 16px 28px;
 }
 .view{ display:none; }
 .view.active{ display:block; }
@@ -377,7 +391,11 @@ button{font-family:inherit;}
 
 .chip-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
 .sticky-filter-bar{
-  position:sticky; top:var(--header-h, 84px); z-index:40;
+  /* ".content" es siempre su propia caja de scroll (ver .app/.content mas
+     arriba), asi que esta barra se pega al techo de ESA caja -- no hace
+     falta compensar el alto del header, porque el header ya no flota
+     encima como overlay en ningun ancho de pantalla. */
+  position:sticky; top:0; z-index:40;
   background:var(--paper); padding-top:2px; margin-bottom:0;
 }
 .sticky-filter-bar .chip-row{ margin-bottom:8px; }
@@ -413,7 +431,7 @@ button{font-family:inherit;}
 
 /* ===== BOTTOM NAV ===== */
 .tabbar{
-  position:sticky; bottom:0; z-index:50;
+  flex:0 0 auto; z-index:50;
   background:var(--ink-950);
   border-top:1px solid var(--ink-700);
   display:flex;
@@ -518,23 +536,25 @@ button{font-family:inherit;}
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .cart-row__unit{ font-size:calc(11.5px * var(--fs)); color:var(--ink-text-soft); margin-top:2px; }
-.cart-row__desc-btn{
-  display:block; margin-top:5px; background:none; border:none; padding:0;
-  font-size:calc(12px * var(--fs)); font-weight:700; color:var(--gold-700); cursor:pointer;
-  text-decoration:underline; text-align:left;
-}
-.cart-row__desc-btn--active{
-  text-decoration:none; background:var(--gold-100); color:var(--gold-700);
-  padding:3px 9px; border-radius:99px; display:inline-block;
-}
 .cart-row__qty{ flex:0 0 auto; display:flex; align-items:center; gap:6px; }
 .qty-btn--sm{ width:30px; height:30px; font-size:calc(17px * var(--fs)); border-radius:7px; }
 .cart-row__qtyval{ min-width:18px; text-align:center; font-weight:700; font-size:calc(14.5px * var(--fs)); font-variant-numeric:tabular-nums; }
 .cart-row__right{ flex:0 0 auto; text-align:right; display:flex; align-items:center; gap:4px; }
-.cart-row__amounts{ display:flex; flex-direction:column; align-items:flex-end; min-width:66px; }
-.cart-row__subtotal-orig{ font-size:calc(11px * var(--fs)); color:var(--ink-text-soft); text-decoration:line-through; font-variant-numeric:tabular-nums; }
-.cart-row__subtotal{ font-weight:800; font-size:calc(14.5px * var(--fs)); color:var(--gold-700); font-variant-numeric:tabular-nums; }
+.cart-row__subtotal{ font-weight:800; font-size:calc(14.5px * var(--fs)); color:var(--gold-700); font-variant-numeric:tabular-nums; min-width:66px; }
 .cart-row__remove{ background:none; border:none; color:#c2b8a2; font-size:calc(19px * var(--fs)); cursor:pointer; padding:2px 4px; }
+
+/* Fila de acciones del carrito: agregar otro producto / descuento (a TODA
+   la venta) / vender algo fuera de catálogo. flex-wrap para que, si no
+   caben los tres en una línea (pantalla angosta o letra agrandada con
+   A+/A++), pasen prolijamente a una segunda línea en vez de desbordar. */
+.cart-actions-row{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; }
+.cart-actions-row__btn{ flex:1 1 auto; text-align:center; white-space:nowrap; }
+/* Estado "aplicado" de un botón de descuento -- mismo lenguaje que
+   ".btn-hoy-link--bordered" (que ya se usa en "+ Agregar otro producto") pero
+   con relleno solido para que se note que ya hay un descuento puesto. */
+.descuento-btn--active{
+  border-color:var(--gold-700) !important; background:var(--gold-600) !important; color:#fff !important;
+}
 
 /* ===== REPORTES — vendido vs neto ===== */
 #repHoyChip{ font-weight:700; color:var(--gold-700); }
@@ -599,40 +619,20 @@ button{font-family:inherit;}
 
 /* --- marco de escritorio: bordes con relieve, esquinas redondas y fondo
    oscuro fuera de la app, en pantallas anchas. El recorte redondeado va
-   en .app (un solo elemento, las 4 esquinas de una vez) y quien hace
-   scroll es .content -- la misma arquitectura ya usada (y corregida) en
-   las versiones Fusion para evitar el bug de la "punta" en las esquinas. --- */
+   en .app (un solo elemento, las 4 esquinas de una vez). La arquitectura de
+   ".app" fijo + ".content" con su propio scroll (que evitaba el bug de la
+   "punta" en las esquinas) ya es la base para TODOS los anchos de pantalla
+   -- ver .app/.header/.content/.tabbar mas arriba -- así que acá solo
+   quedan los detalles puramente cosméticos del escritorio (bordes, sombra,
+   fondo oscuro fuera de la app). --- */
 @media (min-width:680px){
   body{ background:var(--ink-950); }
   .app{
-    margin:0 auto;
-    min-height:100vh;
-    height:100vh;
-    overflow:hidden;
     border-radius:20px;
     border-left:1px solid var(--gold-700);
     border-right:1px solid var(--gold-700);
     box-shadow:0 0 60px rgba(0,0,0,.35);
   }
-  .content{ overflow-y:auto; height:100%; }
-  /* Aca ".content" es su propia caja de scroll y ya arranca DEBAJO del
-     header (que es un hermano suyo, no un elemento "fijo" superpuesto) --
-     por eso la barra de filtros debe pegarse al techo de ESA caja (top:0),
-     no otra vez a --header-h (esa variable es solo para el celular, donde
-     el header sí flota encima con position:fixed). Usar --header-h acá
-     dejaba un hueco del alto del header entre el header y la barra, hueco
-     por el que se veía pasar la lista al hacer scroll -- el bug de "el
-     buscador queda fijo a media pantalla y la lista se mueve por detras". */
-  .sticky-filter-bar{ top:0; }
-}
-
-/* --- celular: header/tabbar fijos al viewport visual en vez de sticky al
-   documento, para que no salten cuando el navegador esconde/muestra su
-   barra de direcciones durante el scroll --- */
-@media (max-width:679.98px){
-  .header{ position:fixed; top:0; left:0; right:0; z-index:50; }
-  .tabbar{ position:fixed; bottom:0; left:0; right:0; z-index:50; }
-  .content{ padding-top:calc(var(--header-h, 84px) + 20px); }
 }
 </style>
 </head>
@@ -703,8 +703,11 @@ button{font-family:inherit;}
 
           <ul class="cart-list" id="cartList"></ul>
 
-          <button class="btn-hoy-link btn-hoy-link--bordered" id="btnAddMore" onclick="toggleAddMore()" style="margin:0 0 8px;">+ Agregar otro producto</button>
-          <button class="btn-hoy-link btn-hoy-link--bordered" onclick="abrirFormOtros()" style="margin:0 0 12px;">+ Vender algo que no está en el inventario</button>
+          <div class="cart-actions-row">
+            <button class="btn-hoy-link btn-hoy-link--bordered cart-actions-row__btn" id="btnAddMore" onclick="toggleAddMore()">+ Agregar otro producto</button>
+            <button type="button" class="btn-hoy-link btn-hoy-link--bordered cart-actions-row__btn" id="btnCartDescuento" onclick="abrirDescuentoCart()">+ Descuento</button>
+            <button class="btn-hoy-link btn-hoy-link--bordered cart-actions-row__btn" onclick="abrirFormOtros()">+ Venta de otros artículos</button>
+          </div>
           <div id="cartAddMoreBox" style="display:none; margin-bottom:14px;">
             <div class="search-box" style="margin-bottom:8px;">
               <svg class="search-icon" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="M14 14L18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -721,6 +724,7 @@ button{font-family:inherit;}
               <button class="option-opt" data-pay="Transferencia" onclick="selectPay(this)">Transf.</button>
             </div>
           </div>
+          <div class="field-note" id="cartDescuentoResumen" style="display:none; margin-bottom:8px;"></div>
           <div class="total-line">
             <span class="total-line__label">Total</span>
             <span class="total-line__value" id="sfTotal">$0</span>
@@ -733,7 +737,7 @@ button{font-family:inherit;}
         <svg class="search-icon" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="M14 14L18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         <input type="text" id="searchInputVender" placeholder="Buscar disco..." autocomplete="off">
       </div>
-      <button class="btn-hoy-link btn-hoy-link--bordered" onclick="abrirFormOtros()" style="margin:8px 0 4px;">+ Vender algo que no está en el inventario</button>
+      <button class="btn-hoy-link btn-hoy-link--bordered" onclick="abrirFormOtros()" style="margin:8px 0 4px;">+ Venta de otros artículos</button>
       <ul class="results-list" id="resultsListVender"></ul>
 
       <div class="divider-label">Ventas del día</div>
@@ -1052,7 +1056,7 @@ button{font-family:inherit;}
       </div>
       <div class="form-row">
         <label>Descuento</label>
-        <button type="button" class="btn btn-outline btn-sm" id="evDescBtn" onclick="abrirDescuentoEdit()" style="width:100%;">+ Descuento</button>
+        <button type="button" class="btn-hoy-link btn-hoy-link--bordered" id="evDescBtn" onclick="abrirDescuentoEdit()" style="width:100%; text-align:center;">+ Descuento</button>
       </div>
       <div class="total-line">
         <span class="total-line__label">Total</span>
@@ -1211,15 +1215,19 @@ async function apiPost(action, payload){
 // ----- STATE (memoria) -----
 let INV = []; // catálogo (Inventario LP + CD), se carga una vez al abrir y se refresca tras cada venta
 let inventarioListo = false;
-let cart = []; // [{code, artist, title, format, priceUnit, qty, descuentoPct, descuentoMonto, motivoDescuento}] — venta en curso, puede tener 1 o varios productos distintos
+let cart = []; // [{code, artist, title, format, priceUnit, qty}] — venta en curso, puede tener 1 o varios productos distintos
 let selectedPayment = 'Efectivo';
 let pendingDelete = null; // {type, fila, dayKey}
 let invFilter = 'todos';
 let selectedVentasDay = null; // se fija en INIT, tras definirse todayKey()
 let editingVenta = null; // {dayKey, sale, descuentoPct, descuentoMonto, motivoDescuento}
 let editingPayment = 'Efectivo';
+// Descuento de TODA la venta en curso (no por producto) -- al confirmar la
+// venta se escribe completo en un solo producto del carrito (el de mayor
+// valor), no se reparte entre todos. Se reinicia en closeSaleForm().
+let cartDescuento = { pct: 0, monto: 0, motivo: '' };
 // Contexto del overlay de descuento (compartido entre el carrito y editar venta):
-// {mode:'cart', code} apunta a una línea del carrito; {mode:'edit'} apunta a editingVenta.
+// {mode:'cart'} apunta a cartDescuento (toda la venta); {mode:'edit'} apunta a editingVenta (un producto ya registrado).
 let descuentoContext = null;
 const CAJA_BADGE_HOUR = 17; // el indicador de "caja abierta" aparece desde esta hora en adelante
 
@@ -1547,7 +1555,7 @@ function addToCart(item){
       existing.qty += 1;
     }
   } else {
-    cart.push({ code: item.c, artist: item.i, title: item.t, format: item.f, priceUnit: item.p, qty: 1, descuentoPct: 0, descuentoMonto: 0, motivoDescuento: '' });
+    cart.push({ code: item.c, artist: item.i, title: item.t, format: item.f, priceUnit: item.p, qty: 1 });
   }
   document.getElementById('saleFormOverlay').classList.add('show');
   renderCartPanel();
@@ -1556,6 +1564,7 @@ function closeSaleForm(){
   document.getElementById('saleFormOverlay').classList.remove('show');
   cart = [];
   selectedPayment = 'Efectivo';
+  cartDescuento = { pct: 0, monto: 0, motivo: '' };
   document.getElementById('cartAddMoreBox').style.display = 'none';
   document.getElementById('btnAddMore').textContent = '+ Agregar otro producto';
   document.getElementById('searchInputCart').value = '';
@@ -1610,7 +1619,7 @@ function confirmarAgregarOtros(){
   if (!descripcion){ showToast('Escribe una descripción'); return; }
   if (!isFinite(precio) || precio < 0){ showToast('Escribe un precio válido'); return; }
   const code = 'OTROS-' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
-  cart.push({ code, artist: 'Otros', title: descripcion, format: '', priceUnit: precio, qty: cantidad, otros: true, descuentoPct: 0, descuentoMonto: 0, motivoDescuento: '' });
+  cart.push({ code, artist: 'Otros', title: descripcion, format: '', priceUnit: precio, qty: cantidad, otros: true });
   cerrarFormOtros();
   document.getElementById('saleFormOverlay').classList.add('show');
   renderCartPanel();
@@ -1666,12 +1675,10 @@ async function confirmarEditarPrecio(){
 function renderCartPanel(){
   const list = document.getElementById('cartList');
   list.innerHTML = '';
-  let total = 0;
+  let brutoTotal = 0;
   cart.forEach(line => {
-    const bruto = line.priceUnit * line.qty;
-    const neto = aplicarDescuento(bruto, line.descuentoPct, line.descuentoMonto);
-    total += neto;
-    const tieneDescuento = neto < bruto;
+    const subtotal = line.priceUnit * line.qty;
+    brutoTotal += subtotal;
     const li = document.createElement('li');
     li.className = 'cart-row';
     li.innerHTML = `
@@ -1679,7 +1686,6 @@ function renderCartPanel(){
         <div class="cart-row__artist">${esc(line.artist)}</div>
         ${(line.title || line.format) ? `<div class="cart-row__title">${esc([line.title, line.format].filter(Boolean).join(' · '))}</div>` : ''}
         <div class="cart-row__unit">${fmtCLP(line.priceUnit)} c/u</div>
-        <button type="button" class="cart-row__desc-btn${tieneDescuento ? ' cart-row__desc-btn--active' : ''}" onclick="abrirDescuentoCart('${line.code}')">${tieneDescuento ? 'Descuento ' + descuentoResumenTexto(line.descuentoPct, line.descuentoMonto) : '+ Descuento'}</button>
       </div>
       <div class="cart-row__qty">
         <button class="qty-btn qty-btn--sm" onclick="cartChangeQty('${line.code}',-1)" aria-label="Restar">&minus;</button>
@@ -1687,30 +1693,37 @@ function renderCartPanel(){
         <button class="qty-btn qty-btn--sm" onclick="cartChangeQty('${line.code}',1)" aria-label="Sumar">&plus;</button>
       </div>
       <div class="cart-row__right">
-        <div class="cart-row__amounts">
-          ${tieneDescuento ? `<div class="cart-row__subtotal-orig">${fmtCLP(bruto)}</div>` : ''}
-          <div class="cart-row__subtotal">${fmtCLP(neto)}</div>
-        </div>
+        <div class="cart-row__subtotal">${fmtCLP(subtotal)}</div>
         <button class="cart-row__remove" onclick="cartRemoveLine('${line.code}')" aria-label="Quitar">&times;</button>
       </div>`;
     list.appendChild(li);
   });
-  document.getElementById('sfTotal').textContent = fmtCLP(total);
+  const netoTotal = aplicarDescuento(brutoTotal, cartDescuento.pct, cartDescuento.monto);
+  const resumenEl = document.getElementById('cartDescuentoResumen');
+  if (netoTotal < brutoTotal){
+    resumenEl.innerHTML = `Subtotal: ${fmtCLP(brutoTotal)} &nbsp;·&nbsp; Descuento: ${descuentoResumenTexto(cartDescuento.pct, cartDescuento.monto)}`;
+    resumenEl.style.display = 'block';
+  } else {
+    resumenEl.style.display = 'none';
+  }
+  document.getElementById('sfTotal').textContent = fmtCLP(netoTotal);
+  actualizarBotonDescuentoCart_();
 }
 
 // =====================================================================
-// DESCUENTO (compartido: una línea del carrito, o una venta en edición)
+// DESCUENTO (compartido: toda la venta en curso del carrito, o una venta
+// ya registrada que se está editando)
 // =====================================================================
 // Devuelve {bruto, pct, monto, motivo, titulo} para el contexto actual del
-// overlay de descuento, sea una línea del carrito o la venta en edición.
+// overlay de descuento, sea el carrito completo o la venta en edición.
 function descuentoDatosContexto_(){
   if (!descuentoContext) return null;
   if (descuentoContext.mode === 'cart'){
-    const line = cart.find(l => l.code === descuentoContext.code);
-    if (!line) return null;
+    if (cart.length === 0) return null;
+    const bruto = cart.reduce((a, l) => a + l.priceUnit * l.qty, 0);
     return {
-      bruto: line.priceUnit * line.qty, pct: line.descuentoPct || 0, monto: line.descuentoMonto || 0,
-      motivo: line.motivoDescuento || '', titulo: [line.artist, line.title].filter(Boolean).join(' · ')
+      bruto, pct: cartDescuento.pct || 0, monto: cartDescuento.monto || 0,
+      motivo: cartDescuento.motivo || '', titulo: 'Toda la venta'
     };
   }
   if (descuentoContext.mode === 'edit' && editingVenta){
@@ -1722,8 +1735,9 @@ function descuentoDatosContexto_(){
   }
   return null;
 }
-function abrirDescuentoCart(code){
-  descuentoContext = { mode: 'cart', code };
+function abrirDescuentoCart(){
+  if (cart.length === 0) return;
+  descuentoContext = { mode: 'cart' };
   abrirDescuentoOverlay_();
 }
 function abrirDescuentoEdit(){
@@ -1783,11 +1797,7 @@ function quitarDescuento(){
 }
 function aplicarDescuentoAlContexto_(pct, monto, motivo){
   if (descuentoContext.mode === 'cart'){
-    const line = cart.find(l => l.code === descuentoContext.code);
-    if (!line) return;
-    line.descuentoPct = pct;
-    line.descuentoMonto = monto;
-    line.motivoDescuento = motivo;
+    cartDescuento = { pct, monto, motivo };
     renderCartPanel();
   } else if (descuentoContext.mode === 'edit' && editingVenta){
     editingVenta.descuentoPct = pct;
@@ -1801,7 +1811,17 @@ function actualizarBotonDescuentoEdit_(){
   if (!editingVenta) return;
   const btn = document.getElementById('evDescBtn');
   const resumen = descuentoResumenTexto(editingVenta.descuentoPct, editingVenta.descuentoMonto);
+  btn.classList.toggle('descuento-btn--active', !!resumen);
   btn.textContent = resumen ? 'Descuento ' + resumen + ' — editar' : '+ Descuento';
+}
+// Botón de descuento del carrito (aplica a TODA la venta en curso, no a un
+// producto en particular -- ver comentario de cartDescuento más arriba).
+function actualizarBotonDescuentoCart_(){
+  const btn = document.getElementById('btnCartDescuento');
+  if (!btn) return;
+  const resumen = descuentoResumenTexto(cartDescuento.pct, cartDescuento.monto);
+  btn.classList.toggle('descuento-btn--active', !!resumen);
+  btn.textContent = resumen ? 'Descuento ' + resumen : '+ Descuento';
 }
 function selectPay(btn){
   selectedPayment = btn.dataset.pay;
@@ -1851,12 +1871,27 @@ async function confirmarVenta(){
   const day = todayKey();
   const payment = selectedPayment;
   const cartSnapshot = cart.map(l => ({...l}));
-  const totalVenta = cartSnapshot.reduce((a,l) => a + aplicarDescuento(l.priceUnit*l.qty, l.descuentoPct, l.descuentoMonto), 0);
+  const descuentoSnapshot = { ...cartDescuento };
+  const brutoVenta = cartSnapshot.reduce((a,l) => a + l.priceUnit*l.qty, 0);
+  const totalVenta = aplicarDescuento(brutoVenta, descuentoSnapshot.pct, descuentoSnapshot.monto);
+  // El descuento es de TODA la venta, pero la Hoja lo guarda por producto --
+  // se escribe completo en un solo producto (el de mayor valor de este
+  // carrito), no se reparte entre todos. Con un solo producto en el
+  // carrito (el caso más común) da exactamente lo mismo.
+  const hayDescuento = descuentoSnapshot.pct > 0 || descuentoSnapshot.monto > 0;
+  let idxLineaDescuento = -1;
+  if (hayDescuento){
+    let mejorMonto = -1;
+    cartSnapshot.forEach((l, idx) => {
+      const monto = l.priceUnit * l.qty;
+      if (monto > mejorMonto){ mejorMonto = monto; idxLineaDescuento = idx; }
+    });
+  }
 
   try{
     await apiPost('venta', {
       fecha: day, hora: time, ventaId, formaPago: payment,
-      lineas: cartSnapshot.map(l => {
+      lineas: cartSnapshot.map((l, idx) => {
         const linea = { codigo: l.code, cantidad: l.qty };
         if (l.otros){
           // "Otros": el backend no tiene de donde sacar descripcion ni precio
@@ -1877,11 +1912,12 @@ async function confirmarVenta(){
           linea.titulo = l.title || '';
           linea.formato = l.format || '';
         }
-        // Descuento por producto (opcional) -- solo se manda si el vendedor lo
-        // puso, para no ensuciar el registro de ventas sin descuento.
-        if (l.descuentoPct > 0) linea.descuentoPct = l.descuentoPct;
-        if (l.descuentoMonto > 0) linea.descuentoMonto = l.descuentoMonto;
-        if (l.motivoDescuento) linea.motivoDescuento = l.motivoDescuento;
+        // Descuento de toda la venta -- se escribe solo en la línea elegida (ver arriba).
+        if (idx === idxLineaDescuento){
+          if (descuentoSnapshot.pct > 0) linea.descuentoPct = descuentoSnapshot.pct;
+          if (descuentoSnapshot.monto > 0) linea.descuentoMonto = descuentoSnapshot.monto;
+          if (descuentoSnapshot.motivo) linea.motivoDescuento = descuentoSnapshot.motivo;
+        }
         return linea;
       })
     });
@@ -2470,17 +2506,7 @@ function actualizarIndicadorCaja(){
   if (!badge) return;
   const horaOk = new Date().getHours() >= CAJA_BADGE_HOUR;
   badge.style.display = (cajaAbiertaActual && horaOk) ? 'flex' : 'none';
-  updateStickyOffset();
 }
-// mide el alto real del header (que cambia cuando aparece/desaparece el
-// indicador de caja abierta) para que las barras de busqueda/filtros
-// fijas (Inventario) se peguen justo debajo, sin dejar hueco ni tapar nada
-function updateStickyOffset(){
-  const header = document.querySelector('.header');
-  if (!header) return;
-  document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
-}
-window.addEventListener('resize', updateStickyOffset);
 function irACaja(){
   const btn = document.querySelector('.tab-btn[data-view="caja"]');
   if (btn) switchView('caja', btn);
