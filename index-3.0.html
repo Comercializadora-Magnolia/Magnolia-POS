@@ -310,10 +310,22 @@ button{font-family:inherit;}
 .entry__right{ text-align:right; flex:0 0 auto; }
 .entry__amount{ font-weight:800; font-size:calc(16px * var(--fs)); color:var(--gold-700); font-variant-numeric:tabular-nums; }
 .entry__tag{ margin-top:4px; }
-.entry__actions{ display:flex; align-items:center; gap:2px; flex:0 0 auto; }
-.entry__edit{ background:none; border:none; color:#a0916f; font-size:calc(17px * var(--fs)); cursor:pointer; padding:4px 6px; border-radius:6px; }
-.entry__edit:active{ background:var(--paper-sunken); }
-.entry__del{ background:none; border:none; color:#c2b8a2; font-size:calc(22px * var(--fs)); cursor:pointer; padding:2px 4px; }
+.entry__actions{ display:flex; align-items:center; gap:7px; flex:0 0 auto; }
+/* Botones de editar/eliminar como "recuadritos de color" -- mismo lenguaje
+   visual que las etiquetas de forma de pago (badge-ok/warn/etc), pero más
+   grandes y con borde para que sean fáciles de ver y de apretar. */
+.entry__edit{
+  background:var(--gold-100); border:1.5px solid var(--gold-300); color:var(--gold-700);
+  font-size:calc(17px * var(--fs)); cursor:pointer; width:38px; height:38px;
+  border-radius:9px; display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+}
+.entry__edit:active{ background:var(--gold-300); }
+.entry__del{
+  background:var(--danger-bg); border:1.5px solid var(--danger); color:var(--danger);
+  font-size:calc(21px * var(--fs)); font-weight:700; cursor:pointer; width:38px; height:38px;
+  border-radius:9px; display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+}
+.entry__del:active{ background:var(--danger); color:#fff; }
 
 /* ===== BOLETA con varios productos (venta multi-producto) ===== */
 .cart-ticket{
@@ -506,11 +518,22 @@ button{font-family:inherit;}
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .cart-row__unit{ font-size:calc(11.5px * var(--fs)); color:var(--ink-text-soft); margin-top:2px; }
+.cart-row__desc-btn{
+  display:block; margin-top:5px; background:none; border:none; padding:0;
+  font-size:calc(12px * var(--fs)); font-weight:700; color:var(--gold-700); cursor:pointer;
+  text-decoration:underline; text-align:left;
+}
+.cart-row__desc-btn--active{
+  text-decoration:none; background:var(--gold-100); color:var(--gold-700);
+  padding:3px 9px; border-radius:99px; display:inline-block;
+}
 .cart-row__qty{ flex:0 0 auto; display:flex; align-items:center; gap:6px; }
 .qty-btn--sm{ width:30px; height:30px; font-size:calc(17px * var(--fs)); border-radius:7px; }
 .cart-row__qtyval{ min-width:18px; text-align:center; font-weight:700; font-size:calc(14.5px * var(--fs)); font-variant-numeric:tabular-nums; }
 .cart-row__right{ flex:0 0 auto; text-align:right; display:flex; align-items:center; gap:4px; }
-.cart-row__subtotal{ font-weight:800; font-size:calc(14.5px * var(--fs)); color:var(--gold-700); font-variant-numeric:tabular-nums; min-width:66px; }
+.cart-row__amounts{ display:flex; flex-direction:column; align-items:flex-end; min-width:66px; }
+.cart-row__subtotal-orig{ font-size:calc(11px * var(--fs)); color:var(--ink-text-soft); text-decoration:line-through; font-variant-numeric:tabular-nums; }
+.cart-row__subtotal{ font-weight:800; font-size:calc(14.5px * var(--fs)); color:var(--gold-700); font-variant-numeric:tabular-nums; }
 .cart-row__remove{ background:none; border:none; color:#c2b8a2; font-size:calc(19px * var(--fs)); cursor:pointer; padding:2px 4px; }
 
 /* ===== REPORTES — vendido vs neto ===== */
@@ -1027,6 +1050,10 @@ button{font-family:inherit;}
           <button class="option-opt" data-pay="Transferencia" onclick="selectEditPay(this)">Transf.</button>
         </div>
       </div>
+      <div class="form-row">
+        <label>Descuento</label>
+        <button type="button" class="btn btn-outline btn-sm" id="evDescBtn" onclick="abrirDescuentoEdit()" style="width:100%;">+ Descuento</button>
+      </div>
       <div class="total-line">
         <span class="total-line__label">Total</span>
         <span class="total-line__value" id="evTotal">$0</span>
@@ -1034,6 +1061,42 @@ button{font-family:inherit;}
       <div class="overlay__actions">
         <button class="btn btn-outline" onclick="closeEditVenta()">Cancelar</button>
         <button class="btn btn-primary" onclick="guardarEdicionVenta()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Descuento overlay (compartido: carrito y editar venta) -->
+  <div class="overlay" id="descuentoOverlay">
+    <div class="overlay__panel">
+      <div class="sale-form__header">
+        <div>
+          <div class="sale-form__cart-title">Descuento</div>
+          <div class="sale-form__title-line" id="dscLinea"></div>
+        </div>
+        <button class="close-x" onclick="cerrarDescuento()" aria-label="Cerrar">&times;</button>
+      </div>
+      <p class="section-hint" style="margin-top:-6px;">Usa porcentaje o monto fijo — si escribes en uno, se borra el otro.</p>
+      <div class="grid-2">
+        <div class="form-row" style="margin-bottom:0;">
+          <label>Porcentaje (%)</label>
+          <input id="dscPct" type="number" min="0" max="100" inputmode="decimal" placeholder="Ej: 10" oninput="onDscPctInput()">
+        </div>
+        <div class="form-row" style="margin-bottom:0;">
+          <label>Monto fijo ($)</label>
+          <input id="dscMonto" type="number" min="0" inputmode="numeric" placeholder="Ej: 1000" oninput="onDscMontoInput()">
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Motivo (opcional)</label>
+        <input id="dscMotivo" type="text" placeholder="Ej: Cliente frecuente">
+      </div>
+      <div class="total-line">
+        <span class="total-line__label">Nuevo total</span>
+        <span class="total-line__value" id="dscNuevoTotal">$0</span>
+      </div>
+      <div class="overlay__actions">
+        <button class="btn btn-outline" onclick="quitarDescuento()">Quitar descuento</button>
+        <button class="btn btn-primary" onclick="guardarDescuento()">Aplicar</button>
       </div>
     </div>
   </div>
@@ -1148,13 +1211,16 @@ async function apiPost(action, payload){
 // ----- STATE (memoria) -----
 let INV = []; // catálogo (Inventario LP + CD), se carga una vez al abrir y se refresca tras cada venta
 let inventarioListo = false;
-let cart = []; // [{code, artist, title, format, priceUnit, qty}] — venta en curso, puede tener 1 o varios productos distintos
+let cart = []; // [{code, artist, title, format, priceUnit, qty, descuentoPct, descuentoMonto, motivoDescuento}] — venta en curso, puede tener 1 o varios productos distintos
 let selectedPayment = 'Efectivo';
 let pendingDelete = null; // {type, fila, dayKey}
 let invFilter = 'todos';
 let selectedVentasDay = null; // se fija en INIT, tras definirse todayKey()
-let editingVenta = null; // {dayKey, sale}
+let editingVenta = null; // {dayKey, sale, descuentoPct, descuentoMonto, motivoDescuento}
 let editingPayment = 'Efectivo';
+// Contexto del overlay de descuento (compartido entre el carrito y editar venta):
+// {mode:'cart', code} apunta a una línea del carrito; {mode:'edit'} apunta a editingVenta.
+let descuentoContext = null;
 const CAJA_BADGE_HOUR = 17; // el indicador de "caja abierta" aparece desde esta hora en adelante
 
 // listas "vivas" de la última carga — las usan los botones de editar/eliminar
@@ -1251,12 +1317,32 @@ function mapProductoApi_(d){
     pm: typeof d.precioFinalManual === 'number' ? d.precioFinalManual : null
   };
 }
-// Venta: {row, ventaId, time, code, artist, title, format, priceUnit, qty, total, payment}
+// Aplica un descuento a un monto bruto -- el monto fijo ($) manda por sobre el
+// porcentaje si vinieran los dos a la vez (mismo criterio que usa la fórmula de
+// la columna H "Total" en la Hoja, ver comentario de editarVenta_ en Codigo.gs).
+function aplicarDescuento(bruto, pct, monto){
+  if (monto && monto > 0) return Math.max(0, bruto - monto);
+  if (pct && pct > 0) return Math.max(0, bruto * (1 - pct / 100));
+  return bruto;
+}
+// Texto corto para mostrar un descuento ya aplicado (carrito / editar venta).
+function descuentoResumenTexto(pct, monto){
+  if (monto && monto > 0) return '-' + fmtCLP(monto);
+  if (pct && pct > 0) return '-' + pct + '%';
+  return '';
+}
+// Venta: {row, ventaId, time, code, artist, title, format, priceUnit, qty, total, payment,
+//         descuentoPct, descuentoMonto, motivoDescuento}
 function mapVentaApi_(v){
   return {
     row: v._row, ventaId: v.ventaId, time: v.hora || '', fecha: v.fecha,
     code: v.codigo, artist: v.interprete, title: v.titulo, format: v.presentacion,
-    priceUnit: v.precioVenta, qty: v.cantidad, total: v.total, payment: v.formaPago
+    priceUnit: v.precioVenta, qty: v.cantidad, total: v.total, payment: v.formaPago,
+    // el backend usa "montoDescuentoOpcional" al leer y "descuentoMonto" al escribir --
+    // acá se normaliza siempre a descuentoMonto para que el resto de la app use un solo nombre.
+    descuentoPct: typeof v.descuentoPct === 'number' && v.descuentoPct > 0 ? v.descuentoPct : 0,
+    descuentoMonto: typeof v.montoDescuentoOpcional === 'number' && v.montoDescuentoOpcional > 0 ? v.montoDescuentoOpcional : 0,
+    motivoDescuento: v.motivoDescuento || ''
   };
 }
 // Gasto: {row, concepto, monto}
@@ -1461,7 +1547,7 @@ function addToCart(item){
       existing.qty += 1;
     }
   } else {
-    cart.push({ code: item.c, artist: item.i, title: item.t, format: item.f, priceUnit: item.p, qty: 1 });
+    cart.push({ code: item.c, artist: item.i, title: item.t, format: item.f, priceUnit: item.p, qty: 1, descuentoPct: 0, descuentoMonto: 0, motivoDescuento: '' });
   }
   document.getElementById('saleFormOverlay').classList.add('show');
   renderCartPanel();
@@ -1524,7 +1610,7 @@ function confirmarAgregarOtros(){
   if (!descripcion){ showToast('Escribe una descripción'); return; }
   if (!isFinite(precio) || precio < 0){ showToast('Escribe un precio válido'); return; }
   const code = 'OTROS-' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
-  cart.push({ code, artist: 'Otros', title: descripcion, format: '', priceUnit: precio, qty: cantidad, otros: true });
+  cart.push({ code, artist: 'Otros', title: descripcion, format: '', priceUnit: precio, qty: cantidad, otros: true, descuentoPct: 0, descuentoMonto: 0, motivoDescuento: '' });
   cerrarFormOtros();
   document.getElementById('saleFormOverlay').classList.add('show');
   renderCartPanel();
@@ -1582,7 +1668,10 @@ function renderCartPanel(){
   list.innerHTML = '';
   let total = 0;
   cart.forEach(line => {
-    total += line.priceUnit * line.qty;
+    const bruto = line.priceUnit * line.qty;
+    const neto = aplicarDescuento(bruto, line.descuentoPct, line.descuentoMonto);
+    total += neto;
+    const tieneDescuento = neto < bruto;
     const li = document.createElement('li');
     li.className = 'cart-row';
     li.innerHTML = `
@@ -1590,6 +1679,7 @@ function renderCartPanel(){
         <div class="cart-row__artist">${esc(line.artist)}</div>
         ${(line.title || line.format) ? `<div class="cart-row__title">${esc([line.title, line.format].filter(Boolean).join(' · '))}</div>` : ''}
         <div class="cart-row__unit">${fmtCLP(line.priceUnit)} c/u</div>
+        <button type="button" class="cart-row__desc-btn${tieneDescuento ? ' cart-row__desc-btn--active' : ''}" onclick="abrirDescuentoCart('${line.code}')">${tieneDescuento ? 'Descuento ' + descuentoResumenTexto(line.descuentoPct, line.descuentoMonto) : '+ Descuento'}</button>
       </div>
       <div class="cart-row__qty">
         <button class="qty-btn qty-btn--sm" onclick="cartChangeQty('${line.code}',-1)" aria-label="Restar">&minus;</button>
@@ -1597,12 +1687,121 @@ function renderCartPanel(){
         <button class="qty-btn qty-btn--sm" onclick="cartChangeQty('${line.code}',1)" aria-label="Sumar">&plus;</button>
       </div>
       <div class="cart-row__right">
-        <div class="cart-row__subtotal">${fmtCLP(line.priceUnit * line.qty)}</div>
+        <div class="cart-row__amounts">
+          ${tieneDescuento ? `<div class="cart-row__subtotal-orig">${fmtCLP(bruto)}</div>` : ''}
+          <div class="cart-row__subtotal">${fmtCLP(neto)}</div>
+        </div>
         <button class="cart-row__remove" onclick="cartRemoveLine('${line.code}')" aria-label="Quitar">&times;</button>
       </div>`;
     list.appendChild(li);
   });
   document.getElementById('sfTotal').textContent = fmtCLP(total);
+}
+
+// =====================================================================
+// DESCUENTO (compartido: una línea del carrito, o una venta en edición)
+// =====================================================================
+// Devuelve {bruto, pct, monto, motivo, titulo} para el contexto actual del
+// overlay de descuento, sea una línea del carrito o la venta en edición.
+function descuentoDatosContexto_(){
+  if (!descuentoContext) return null;
+  if (descuentoContext.mode === 'cart'){
+    const line = cart.find(l => l.code === descuentoContext.code);
+    if (!line) return null;
+    return {
+      bruto: line.priceUnit * line.qty, pct: line.descuentoPct || 0, monto: line.descuentoMonto || 0,
+      motivo: line.motivoDescuento || '', titulo: [line.artist, line.title].filter(Boolean).join(' · ')
+    };
+  }
+  if (descuentoContext.mode === 'edit' && editingVenta){
+    const qty = parseInt(document.getElementById('evQty').value) || editingVenta.sale.qty;
+    return {
+      bruto: editingVenta.sale.priceUnit * qty, pct: editingVenta.descuentoPct || 0, monto: editingVenta.descuentoMonto || 0,
+      motivo: editingVenta.motivoDescuento || '', titulo: [editingVenta.sale.artist, editingVenta.sale.title].filter(Boolean).join(' · ')
+    };
+  }
+  return null;
+}
+function abrirDescuentoCart(code){
+  descuentoContext = { mode: 'cart', code };
+  abrirDescuentoOverlay_();
+}
+function abrirDescuentoEdit(){
+  if (!editingVenta) return;
+  descuentoContext = { mode: 'edit' };
+  abrirDescuentoOverlay_();
+}
+function abrirDescuentoOverlay_(){
+  const datos = descuentoDatosContexto_();
+  if (!datos) return;
+  document.getElementById('dscLinea').textContent = datos.titulo;
+  document.getElementById('dscPct').value = datos.pct > 0 ? datos.pct : '';
+  document.getElementById('dscMonto').value = datos.monto > 0 ? datos.monto : '';
+  document.getElementById('dscMotivo').value = datos.motivo;
+  actualizarPreviewDescuento();
+  document.getElementById('descuentoOverlay').classList.add('show');
+}
+function cerrarDescuento(){
+  descuentoContext = null;
+  document.getElementById('descuentoOverlay').classList.remove('show');
+}
+// % y $ son excluyentes -- escribir en uno borra el otro, para que nunca
+// queden los dos puestos a la vez (mismo criterio que la Hoja: el monto
+// manda si de algún modo quedaran ambos, pero acá evitamos la ambigüedad).
+function onDscPctInput(){
+  const pctInput = document.getElementById('dscPct');
+  if (pctInput.value !== '') document.getElementById('dscMonto').value = '';
+  actualizarPreviewDescuento();
+}
+function onDscMontoInput(){
+  const montoInput = document.getElementById('dscMonto');
+  if (montoInput.value !== '') document.getElementById('dscPct').value = '';
+  actualizarPreviewDescuento();
+}
+function actualizarPreviewDescuento(){
+  const datos = descuentoDatosContexto_();
+  if (!datos) return;
+  const pct = Number(document.getElementById('dscPct').value) || 0;
+  const monto = Number(document.getElementById('dscMonto').value) || 0;
+  const nuevoTotal = aplicarDescuento(datos.bruto, pct, monto);
+  document.getElementById('dscNuevoTotal').textContent = fmtCLP(nuevoTotal);
+}
+function guardarDescuento(){
+  if (!descuentoContext) return;
+  const pctRaw = Number(document.getElementById('dscPct').value);
+  const montoRaw = Number(document.getElementById('dscMonto').value);
+  const pct = isFinite(pctRaw) && pctRaw > 0 ? pctRaw : 0;
+  const monto = isFinite(montoRaw) && montoRaw > 0 ? montoRaw : 0;
+  const motivo = document.getElementById('dscMotivo').value.trim();
+  aplicarDescuentoAlContexto_(pct, monto, motivo);
+  cerrarDescuento();
+}
+function quitarDescuento(){
+  if (!descuentoContext) return;
+  aplicarDescuentoAlContexto_(0, 0, '');
+  cerrarDescuento();
+}
+function aplicarDescuentoAlContexto_(pct, monto, motivo){
+  if (descuentoContext.mode === 'cart'){
+    const line = cart.find(l => l.code === descuentoContext.code);
+    if (!line) return;
+    line.descuentoPct = pct;
+    line.descuentoMonto = monto;
+    line.motivoDescuento = motivo;
+    renderCartPanel();
+  } else if (descuentoContext.mode === 'edit' && editingVenta){
+    editingVenta.descuentoPct = pct;
+    editingVenta.descuentoMonto = monto;
+    editingVenta.motivoDescuento = motivo;
+    actualizarBotonDescuentoEdit_();
+    updateEditTotal();
+  }
+}
+function actualizarBotonDescuentoEdit_(){
+  if (!editingVenta) return;
+  const btn = document.getElementById('evDescBtn');
+  const resumen = descuentoResumenTexto(editingVenta.descuentoPct, editingVenta.descuentoMonto);
+  btn.textContent = resumen ? 'Descuento ' + resumen + ' — editar' : '+ Descuento';
 }
 function selectPay(btn){
   selectedPayment = btn.dataset.pay;
@@ -1652,7 +1851,7 @@ async function confirmarVenta(){
   const day = todayKey();
   const payment = selectedPayment;
   const cartSnapshot = cart.map(l => ({...l}));
-  const totalVenta = cartSnapshot.reduce((a,l) => a + l.priceUnit*l.qty, 0);
+  const totalVenta = cartSnapshot.reduce((a,l) => a + aplicarDescuento(l.priceUnit*l.qty, l.descuentoPct, l.descuentoMonto), 0);
 
   try{
     await apiPost('venta', {
@@ -1678,6 +1877,11 @@ async function confirmarVenta(){
           linea.titulo = l.title || '';
           linea.formato = l.format || '';
         }
+        // Descuento por producto (opcional) -- solo se manda si el vendedor lo
+        // puso, para no ensuciar el registro de ventas sin descuento.
+        if (l.descuentoPct > 0) linea.descuentoPct = l.descuentoPct;
+        if (l.descuentoMonto > 0) linea.descuentoMonto = l.descuentoMonto;
+        if (l.motivoDescuento) linea.motivoDescuento = l.motivoDescuento;
         return linea;
       })
     });
@@ -1873,7 +2077,7 @@ function confirmDeleteVenta(fila, dayKey){
 function abrirEdicionVenta(fila, dayKey){
   const sale = ventasDiaActual.find(v => v.row === fila);
   if (!sale) return;
-  editingVenta = { dayKey, sale };
+  editingVenta = { dayKey, sale, descuentoPct: sale.descuentoPct || 0, descuentoMonto: sale.descuentoMonto || 0, motivoDescuento: sale.motivoDescuento || '' };
   editingPayment = sale.payment;
   document.getElementById('evArtist').textContent = sale.artist;
   document.getElementById('evTitle').textContent = [sale.title, sale.format].filter(Boolean).join(' · ');
@@ -1881,6 +2085,7 @@ function abrirEdicionVenta(fila, dayKey){
   const qtyInput = document.getElementById('evQty');
   qtyInput.value = sale.qty;
   document.querySelectorAll('#editVentaOverlay .option-opt').forEach(b => b.classList.toggle('selected', b.dataset.pay === sale.payment));
+  actualizarBotonDescuentoEdit_();
   updateEditTotal();
   document.getElementById('editVentaOverlay').classList.add('show');
 }
@@ -1917,14 +2122,21 @@ function selectEditPay(btn){
 function updateEditTotal(){
   if (!editingVenta) return;
   const qty = parseInt(document.getElementById('evQty').value) || 1;
-  document.getElementById('evTotal').textContent = fmtCLP(editingVenta.sale.priceUnit * qty);
+  const bruto = editingVenta.sale.priceUnit * qty;
+  const neto = aplicarDescuento(bruto, editingVenta.descuentoPct, editingVenta.descuentoMonto);
+  document.getElementById('evTotal').textContent = fmtCLP(neto);
 }
 async function guardarEdicionVenta(){
   if (!editingVenta) return;
   const { dayKey, sale } = editingVenta;
   const qty = Math.max(1, parseInt(document.getElementById('evQty').value) || 1);
   try{
-    await apiPost('editarventa', { fila: sale.row, cantidad: qty, formaPago: editingPayment });
+    await apiPost('editarventa', {
+      fila: sale.row, cantidad: qty, formaPago: editingPayment,
+      descuentoPct: editingVenta.descuentoPct || 0,
+      descuentoMonto: editingVenta.descuentoMonto || 0,
+      motivoDescuento: editingVenta.motivoDescuento || ''
+    });
   }catch(err){
     showToast('No se pudo guardar el cambio: ' + err.message, { duration: 4500 });
     return;
