@@ -152,9 +152,10 @@ button{font-family:inherit;}
 /* ===== CARDS ===== */
 .card{
   background:var(--paper-raised);
-  border:1px solid var(--line);
+  border:1.5px solid var(--line-strong);
   border-radius:14px;
   padding:16px;
+  box-shadow:0 1px 3px rgba(36,29,21,0.08);
 }
 .card + .card{ margin-top:10px; }
 .stack{ display:flex; flex-direction:column; gap:10px; }
@@ -184,16 +185,17 @@ button{font-family:inherit;}
 
 .result-item{
   background:var(--paper-raised);
-  border:1px solid var(--line);
+  border:1.5px solid var(--line-strong);
   border-radius:12px;
   padding:13px 14px;
   margin-bottom:8px;
   cursor:pointer;
+  box-shadow:0 1px 3px rgba(36,29,21,0.08);
   transition:border-color .12s, box-shadow .12s;
 }
 .result-item:active{ border-color:var(--gold-600); box-shadow:0 0 0 3px rgba(182,134,63,0.14); }
 .result-item--disabled{ opacity:0.55; cursor:not-allowed; }
-.result-item--disabled:active{ border-color:var(--line); box-shadow:none; }
+.result-item--disabled:active{ border-color:var(--line-strong); box-shadow:0 1px 3px rgba(36,29,21,0.08); }
 .result-item__artist{ font-weight:700; font-size:calc(16.5px * var(--fs)); color:var(--ink-text); }
 .result-item__title{ font-size:calc(15px * var(--fs)); color:var(--ink-text-soft); margin-top:2px; }
 .result-item__meta{ display:flex; justify-content:space-between; align-items:center; margin-top:7px; }
@@ -296,7 +298,7 @@ button{font-family:inherit;}
 
 /* ===== KPI / STAT TILES ===== */
 .stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
-.stat-tile{ background:var(--paper-raised); border:1px solid var(--line); border-radius:12px; padding:14px; }
+.stat-tile{ background:var(--paper-raised); border:1.5px solid var(--line-strong); border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(36,29,21,0.08); }
 .stat-tile__label{ font-size:calc(12.5px * var(--fs)); font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:var(--ink-text-soft); margin-bottom:6px; }
 .stat-tile__value{ font-family:var(--font-display); font-size:calc(25.5px * var(--fs)); font-weight:600; color:var(--gold-700); font-variant-numeric:tabular-nums; }
 .stat-tile__sub{ font-size:calc(14px * var(--fs)); color:var(--ink-text-soft); margin-top:2px; }
@@ -314,8 +316,9 @@ button{font-family:inherit;}
 
 /* ===== LIST ENTRIES (ventas/compras del dia) ===== */
 .entry{
-  background:var(--paper-raised); border:1px solid var(--line); border-radius:11px;
+  background:var(--paper-raised); border:1.5px solid var(--line-strong); border-radius:11px;
   padding:12px 14px; margin-bottom:7px; display:flex; align-items:center; gap:10px;
+  box-shadow:0 1px 3px rgba(36,29,21,0.08);
 }
 .entry__info{ flex:1; min-width:0; }
 .entry__artist{ font-size:calc(15.5px * var(--fs)); font-weight:700; color:var(--ink-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -414,7 +417,7 @@ button{font-family:inherit;}
 
 .gastos-scroll{
   max-height:190px; overflow-y:auto;
-  border:1px solid var(--line); border-radius:10px;
+  border:1.5px solid var(--line-strong); border-radius:10px;
   background:var(--paper-raised);
 }
 .gastos-scroll .list-plain{ padding:2px 4px; }
@@ -1414,6 +1417,47 @@ document.getElementById('headerDate').textContent = formatDateLong(new Date());
 selectedVentasDay = todayKey();
 
 async function initApp(){
+  // Camino rápido: un solo viaje al servidor (acción "estadoinicial") trae
+  // TODO lo que la app necesita para el primer pantallazo -- fecha del
+  // servidor, catálogo completo, ventas de hoy, estado de caja, gastos y
+  // retiros del turno, e historial de cierres -- en vez de pedirlo en 6 o 7
+  // viajes separados uno detrás de otro (ping, inventario, ventasrango,
+  // cajaabierta, gastosrango, retirosrango, historial), que es lo que hacía
+  // sentir la app lenta para abrir en el celular. Si por lo que sea no viene
+  // el campo "hoy" (por ejemplo, el Apps Script todavía no se redesplegó
+  // con esta versión), no se usa nada de esta respuesta a medias -- se cae
+  // directo al camino clásico de siempre, que ya está probado y no depende
+  // de "estadoinicial" para nada.
+  try{
+    const estado = await apiGet({ action: 'estadoinicial' });
+    if (!estado || !estado.hoy) throw new Error('estadoinicial sin "hoy" -- se usa el camino clásico');
+
+    SERVER_TODAY_KEY = estado.hoy;
+    const [y, m, d] = estado.hoy.split('-').map(Number);
+    document.getElementById('headerDate').textContent = formatDateLong(new Date(y, m - 1, d));
+    selectedVentasDay = todayKey();
+
+    INV = (estado.productos || []).map(mapProductoApi_);
+    inventarioListo = true;
+    hideToast();
+    showConnError(null);
+
+    await Promise.all([
+      renderVentasDia({ ventas: estado.ventasHoy || [] }),
+      renderCaja({
+        caja: estado.cajaAbierta || null,
+        gastos: { gastos: estado.gastosTurno || [] },
+        retiros: { retiros: estado.retirosTurno || [] },
+        historial: { cierres: estado.historial || [] }
+      })
+    ]);
+    actualizarIndicadorCaja();
+    return;
+  }catch(err){
+    console.error('No se pudo usar el arranque rápido (estadoinicial), se usa el camino clásico:', err);
+  }
+
+  // ----- Camino clásico (respaldo): pide cada cosa por separado -----
   // Le preguntamos al servidor qué día es "hoy" (el mismo reloj que usa para
   // guardar cada venta) antes de cargar cualquier otra cosa, para que toda la
   // app — Ventas del día, Reportes, Caja — use esa fecha y no la del reloj de
@@ -1976,7 +2020,10 @@ function agruparVentas(ventas){
   });
   return order.map(k => map.get(k));
 }
-async function renderVentasDia(){
+// preData (opcional): { ventas: [...] } ya resuelto -- lo usa initApp() para
+// pintar de una vez con lo que trajo "estadoinicial" en un solo viaje al
+// servidor, en vez de volver a pedir "ventasrango" para el primer render.
+async function renderVentasDia(preData){
   const dayKey = selectedVentasDay || todayKey();
   const isHoy = dayKey === todayKey();
   document.getElementById('ventasFechaInput').value = dayKey;
@@ -1995,7 +2042,7 @@ async function renderVentasDia(){
 
   let ventas;
   try{
-    const data = await apiGet({ action: 'ventasrango', desde: dayKey, hasta: dayKey });
+    const data = preData || await apiGet({ action: 'ventasrango', desde: dayKey, hasta: dayKey });
     ventas = data.ventas.map(mapVentaApi_);
   }catch(err){
     emptyText.textContent = 'No se pudieron cargar las ventas: ' + err.message;
@@ -2237,11 +2284,17 @@ function closeConfirm(){
 // =====================================================================
 // CAJA DE FIN DE SEMANA
 // =====================================================================
-async function renderCaja(){
+// pre (opcional): { caja, gastos, retiros, historial } ya resueltos -- ver
+// comentario de renderVentasDia más arriba, mismo mecanismo para el arranque
+// rápido con "estadoinicial". Cuando no se pasa nada, cada sub-render pide
+// sus propios datos (como siempre), y esos pedidos van en paralelo, no uno
+// detrás del otro, para no sumar tiempos de espera innecesarios.
+async function renderCaja(pre){
+  pre = pre || {};
   const cerradaDiv = document.getElementById('cajaCerrada');
   const abiertaDiv = document.getElementById('cajaAbierta');
   try{
-    const data = await apiGet({ action: 'cajaabierta' });
+    const data = pre.caja !== undefined ? { caja: pre.caja } : await apiGet({ action: 'cajaabierta' });
     cajaAbiertaActual = data.caja;
   }catch(err){
     showToast('No se pudo consultar el estado de la caja: ' + err.message, { duration: 4500 });
@@ -2250,7 +2303,7 @@ async function renderCaja(){
   if (!cajaAbiertaActual){
     cerradaDiv.style.display = 'block';
     abiertaDiv.style.display = 'none';
-    await renderHistorialCierres();
+    await renderHistorialCierres(pre.historial);
     actualizarIndicadorCaja();
     return;
   }
@@ -2260,14 +2313,18 @@ async function renderCaja(){
     `Caja abierta desde el ${cajaAbiertaActual.fechaApertura} con ${fmtCLP(cajaAbiertaActual.efectivoInicial)} de efectivo inicial.`;
   document.getElementById('cajaEfectivoFinal').value = '';
   document.getElementById('cierreResultado').innerHTML = '';
-  await renderGastos();
-  await renderRetiros();
-  await renderHistorialCierres();
+  // gastos, retiros e historial son independientes entre sí -- en paralelo,
+  // no en fila, para no sumar sus tiempos de espera al servidor.
+  await Promise.all([
+    renderGastos(pre.gastos),
+    renderRetiros(pre.retiros),
+    renderHistorialCierres(pre.historial)
+  ]);
   actualizarIndicadorCaja();
 }
 // lista acumulada de los cierres RECIENTES (ultimos 6 meses), con opcion de editar cada uno —
 // el historial completo sigue en la Hoja (ver exportCierresXLSX, que pide el historial completo aparte).
-async function renderHistorialCierres(){
+async function renderHistorialCierres(preData){
   const list = document.getElementById('cierresHistList');
   const empty = document.getElementById('cierresHistEmpty');
   const note = document.getElementById('cierresHistNote');
@@ -2275,7 +2332,7 @@ async function renderHistorialCierres(){
   list.innerHTML = '';
   let historial;
   try{
-    const data = await apiGet({ action: 'historial' });
+    const data = preData || await apiGet({ action: 'historial' });
     historial = data.cierres.map(mapCierreApi_);
   }catch(err){
     empty.style.display = 'block';
@@ -2360,14 +2417,14 @@ async function registrarGasto(){
   await renderGastos();
   showToast('Gasto agregado');
 }
-async function renderGastos(){
+async function renderGastos(preData){
   const list = document.getElementById('gastosList');
   if (!list) return;
   list.innerHTML = '';
   if (!cajaAbiertaActual){ gastosTurnoActual = []; return; }
   let gastos;
   try{
-    const data = await apiGet({ action: 'gastosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() });
+    const data = preData || await apiGet({ action: 'gastosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() });
     gastos = data.gastos.map(mapGastoApi_);
   }catch(err){
     list.innerHTML = `<li class="no-results">No se pudieron cargar los gastos: ${esc(err.message)}</li>`;
@@ -2417,14 +2474,14 @@ async function registrarRetiro(){
   await renderRetiros();
   showToast('Retiro agregado');
 }
-async function renderRetiros(){
+async function renderRetiros(preData){
   const list = document.getElementById('retirosList');
   if (!list) return;
   list.innerHTML = '';
   if (!cajaAbiertaActual){ retirosTurnoActual = []; return; }
   let retiros;
   try{
-    const data = await apiGet({ action: 'retirosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() });
+    const data = preData || await apiGet({ action: 'retirosrango', desde: cajaAbiertaActual.fechaApertura, hasta: todayKey() });
     retiros = data.retiros.map(mapRetiroApi_);
   }catch(err){
     list.innerHTML = `<li class="no-results">No se pudieron cargar los retiros: ${esc(err.message)}</li>`;
