@@ -27,7 +27,7 @@
   --gold-500:#c79a52;
   --gold-300:#e3b872;
   --gold-100:#f3e3c4;
-  --paper:#faf6ee;
+  --paper:#f0e8d2;
   --paper-raised:#ffffff;
   --paper-sunken:#f1ead9;
   --ink-text:#241d15;
@@ -155,7 +155,7 @@ button{font-family:inherit;}
   border:1.5px solid var(--line-strong);
   border-radius:14px;
   padding:16px;
-  box-shadow:0 1px 3px rgba(36,29,21,0.08);
+  box-shadow:0 2px 5px rgba(36,29,21,0.13);
 }
 .card + .card{ margin-top:10px; }
 .stack{ display:flex; flex-direction:column; gap:10px; }
@@ -190,12 +190,12 @@ button{font-family:inherit;}
   padding:13px 14px;
   margin-bottom:8px;
   cursor:pointer;
-  box-shadow:0 1px 3px rgba(36,29,21,0.08);
+  box-shadow:0 2px 5px rgba(36,29,21,0.13);
   transition:border-color .12s, box-shadow .12s;
 }
 .result-item:active{ border-color:var(--gold-600); box-shadow:0 0 0 3px rgba(182,134,63,0.14); }
 .result-item--disabled{ opacity:0.55; cursor:not-allowed; }
-.result-item--disabled:active{ border-color:var(--line-strong); box-shadow:0 1px 3px rgba(36,29,21,0.08); }
+.result-item--disabled:active{ border-color:var(--line-strong); box-shadow:0 2px 5px rgba(36,29,21,0.13); }
 .result-item__artist{ font-weight:700; font-size:calc(16.5px * var(--fs)); color:var(--ink-text); }
 .result-item__title{ font-size:calc(15px * var(--fs)); color:var(--ink-text-soft); margin-top:2px; }
 .result-item__meta{ display:flex; justify-content:space-between; align-items:center; margin-top:7px; }
@@ -298,7 +298,7 @@ button{font-family:inherit;}
 
 /* ===== KPI / STAT TILES ===== */
 .stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
-.stat-tile{ background:var(--paper-raised); border:1.5px solid var(--line-strong); border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(36,29,21,0.08); }
+.stat-tile{ background:var(--paper-raised); border:1.5px solid var(--line-strong); border-radius:12px; padding:14px; box-shadow:0 2px 5px rgba(36,29,21,0.13); }
 .stat-tile__label{ font-size:calc(12.5px * var(--fs)); font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:var(--ink-text-soft); margin-bottom:6px; }
 .stat-tile__value{ font-family:var(--font-display); font-size:calc(25.5px * var(--fs)); font-weight:600; color:var(--gold-700); font-variant-numeric:tabular-nums; }
 .stat-tile__sub{ font-size:calc(14px * var(--fs)); color:var(--ink-text-soft); margin-top:2px; }
@@ -318,7 +318,7 @@ button{font-family:inherit;}
 .entry{
   background:var(--paper-raised); border:1.5px solid var(--line-strong); border-radius:11px;
   padding:12px 14px; margin-bottom:7px; display:flex; align-items:center; gap:10px;
-  box-shadow:0 1px 3px rgba(36,29,21,0.08);
+  box-shadow:0 2px 5px rgba(36,29,21,0.13);
 }
 .entry__info{ flex:1; min-width:0; }
 .entry__artist{ font-size:calc(15.5px * var(--fs)); font-weight:700; color:var(--ink-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
